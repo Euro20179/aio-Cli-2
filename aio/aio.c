@@ -41,7 +41,7 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
     const size_t en_title_len = strlen(entry->en_title);
 
     #define line(title, value) \
-        string_concat(out, title ": ", strlen(value) + 2); \
+        string_concat(out, title ": ", strlen(value) + 1); \
         string_concat(out, value, strlen(value)); \
         string_concat_char(out, '\n')
 

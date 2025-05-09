@@ -1,9 +1,2 @@
-!*.c
-!**.c
-!*.h
-!**.h
-
-!.gitignore
-!build
-
-*
+log
+a.out
