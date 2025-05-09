@@ -1,0 +1,9 @@
+!*.c
+!**.c
+!*.h
+!**.h
+
+!.gitignore
+!build
+
+*
