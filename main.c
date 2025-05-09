@@ -64,28 +64,6 @@ void readjsonL(string* line, size_t count) {
     printf("%s\n", ob);
 
     string_del(&out);
-
-
-    // string as;
-    // string_new(&as, 0);
-    // aio_artstyle_to_string(entry.art_style, &as);
-    //
-    // char asbuf[as.len + 1];
-    // string_to_cstr(&as, asbuf);
-
-    // printf("%s\n", entry.en_title, entry.itemid, asbuf);
-    //
-    // string_del(&as);
-
-    // char mt[50];
-    // memset(mt, 0, 50);
-    // aio_entryi_get_key(entry, "MediaType", &mt);
-    // for(int i = 0; i < 50; i++) {
-    //     printf("%c", mt[i]);
-    // }
-    // uint64_t id = aio_entryi_get_item_id(entry);
-    //
-    // printf("%zu\n", id);
 }
 
 int main(const int argc, char* argv[]) {
