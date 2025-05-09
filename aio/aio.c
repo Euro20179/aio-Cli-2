@@ -61,7 +61,14 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
     line("Native title", entry->native_title);
     line("Type", entry->type);
     linef("Format", "%u", entry->format);
-    linef("Art style", "%ld", entry->art_style);
+
+    string as;
+    string_new(&as, 128);
+    aio_artstyle_to_string(entry->art_style, &as);
+    const char* c_as = string_mkcstr(&as);
+    linef("Art style", "%s", c_as);
+    string_del(&as);
+
     linef("Item id", "%ld", entry->itemid);
     linef("Parent id", "%ld", entry->parentid);
     linef("Copy of", "%ld", entry->copyof);

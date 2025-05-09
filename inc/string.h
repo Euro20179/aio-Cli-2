@@ -61,3 +61,6 @@ char string_at(string* str, size_t pos);
 void string_split(string*, char sep, void* userdata, void(cb)(string*, size_t count, void*));
 
 void string_slice_suffix(string*, size_t amount);
+
+//adds a NULL terminator to the end of str, then returns the raw data, effectively this makes a cstring
+char* string_mkcstr(string* str);

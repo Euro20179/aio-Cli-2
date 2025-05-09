@@ -93,6 +93,11 @@ void string_to_cstr(string *str, char *out) {
     out[str->len] = 0;
 }
 
+char* string_mkcstr(string *str) {
+    string_concat_char(str, '\0');
+    return str->data;
+}
+
 void string_clear(string* str) {
     str->len = 0;
 }
