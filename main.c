@@ -1,3 +1,4 @@
+#include <json-c/arraylist.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
 #include <json-c/json_types.h>
@@ -13,9 +14,13 @@
 
 #include "aio/aio.h"
 #include "globals.h"
+#include "inc/hashmap.h"
 #include "url.h"
 #include "inc/string.h"
 #include "aio/aio.h"
+
+//initizlied in main
+static hashmap items;
 
 void printSixel(const char* path) {
     sixel_encoder_t* enc;
@@ -42,7 +47,8 @@ success:
     sixel_encoder_unref(enc);
 }
 
-void readjsonL(string* line, size_t count, void* userdata) {
+
+void create_entry_items(string* line, size_t count, void* userdata) {
     size_t len = line->len;
     if(len == 0) {
         return;
@@ -51,19 +57,18 @@ void readjsonL(string* line, size_t count, void* userdata) {
     char buf[line->len + 1];
     string_to_cstr(line, buf);
 
-    struct aio_entryi entry;
-    aio_entryi_parse(buf, &entry);
+    struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
+    aio_entryi_parse(buf, entry);
 
-    string out;
-    string_new(&out, 0);
+    char idbuf[32];
+    idbuf[0] = 0;
+    snprintf(idbuf, 32, "%ld", entry->itemid);
 
-    aio_entryi_to_human_str(&entry, &out);
+    hashmap_set(&items, idbuf, entry);
+}
 
-    string_to_cstr_buf_create(ob, out);
-    string_to_cstr(&out, ob);
-    printf("%s\n", ob);
-
-    string_del(&out);
+int add(int a, int b) {
+    return a + b;
 }
 
 int main(const int argc, char* argv[]) {
@@ -72,9 +77,11 @@ int main(const int argc, char* argv[]) {
     string out;
     string_new(&out, 0);
 
+    hashmap_new(&items);
+
     mkapireq(&out, "/api/v1/list-entries?uid=1");
 
-    string_split(&out, '\n', NULL, readjsonL);
+    string_split(&out, '\n', NULL, create_entry_items);
 
     string_del(&out);
 

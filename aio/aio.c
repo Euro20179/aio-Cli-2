@@ -114,34 +114,40 @@ void pretty_tags_handler(string* name, size_t count, void* tagsList) {
 }
 
 void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
+    //create a line from title and value
 #define line(title, value) \
     string_concat(out, title ": ", strlen(title) + 2); \
     string_concat(out, value, strlen(value)); \
     string_concat_char(out, '\n')
 
-    char buf[100];
-#define linef(title, fmt, value) \
+    //create a line from title, an sprintf format, and value
+#define linef(title, fmt, value) { \
+    char buf[100]; \
     *buf = 0; \
     snprintf(buf, 100, fmt, value); \
-    line(title, buf)
+    line(title, buf); \
+}
+
+
+    //create a line by first converting the value to a string via a conversion func
+    string line_from_string_buf;
+    string_new(&line_from_string_buf, 128);
+#define line_from_string(title, value, convert) { \
+    const char* c_sbuf; \
+    convert(value, &line_from_string_buf); \
+    c_sbuf = string_mkcstr(&line_from_string_buf); \
+    line(title, c_sbuf); \
+}
+
 
     line("Title", entry->en_title);
     line("Native title", entry->native_title);
     line("Type", entry->type);
 
-    string fstring;
-    string_new(&fstring, 32);
-    aio_format_to_string(entry->format, &fstring);
-    const char* c_fstring = string_mkcstr(&fstring);
-    line("Format", c_fstring);
-    string_del(&fstring);
+    line_from_string("Format", entry->format, aio_format_to_string);
+    line_from_string("Art style", entry->art_style, aio_artstyle_to_string);
 
-    string as;
-    string_new(&as, 128);
-    aio_artstyle_to_string(entry->art_style, &as);
-    const char* c_as = string_mkcstr(&as);
-    line("Art style", c_as);
-    string_del(&as);
+    string_del(&line_from_string_buf);
 
     linef("Item id", "%ld", entry->itemid);
     linef("Parent id", "%ld", entry->parentid);
@@ -172,6 +178,7 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
 
     #undef line
     #undef linef
+    #undef line_from_string
 }
 
 void aio_entryi_parse(const char* json, struct aio_entryi* out) {
