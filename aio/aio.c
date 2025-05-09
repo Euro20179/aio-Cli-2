@@ -3,12 +3,80 @@
 #include <json-c/json_object.h>
 #include <json-c/json_types.h>
 #include <json-c/linkhash.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define key(json, name) json_object_object_get(json, name)
+
+void aio_format_to_string(enum aio_entryformat format, string* out) {
+    bool isdigital = false;
+    //check if digital
+    if((format & F_MOD_DIGITAL) == F_MOD_DIGITAL) {
+        format -= F_MOD_DIGITAL;
+        isdigital = true;
+    }
+    //guaranteed not to have F_MOD_DIGITAL since we took it out above
+    switch(format) {
+        case F_VHS:
+            string_concat(out, "VHS", strlen("VHS"));
+            break;
+        case F_CD:
+            string_concat(out, "CD", strlen("CD"));
+            break;
+        case F_DVD:
+            string_concat(out, "DVD", strlen("DVD"));
+            break;
+        case F_BLURAY:
+            string_concat(out, "BLURAY", strlen("BLURAY"));
+            break;
+        case F_4KBLURAY:
+            string_concat(out, "4KBLURAY", strlen("4KBLURAY"));
+            break;
+        case F_MANGA:
+            string_concat(out, "MANGA", strlen("MANGA"));
+            break;
+        case F_BOOK:
+            string_concat(out, "BOOK", strlen("BOOK"));
+            break;
+        case F_DIGITAL:
+            string_concat(out, "DIGITAL", strlen("DIGITAL"));
+            break;
+        case F_BOARDGAME:
+            string_concat(out, "BOARDGAME", strlen("BOARDGAME"));
+            break;
+        case F_STEAM:
+            string_concat(out, "STEAM", strlen("STEAM"));
+            break;
+        case F_NIN_SWITCH:
+            string_concat(out, "NIN_SWITCH", strlen("NIN_SWITCH"));
+            break;
+        case F_XBOXONE:
+            string_concat(out, "XBOXONE", strlen("XBOXONE"));
+            break;
+        case F_XBOX360:
+            string_concat(out, "XBOX360", strlen("XBOX360"));
+            break;
+        case F_OTHER:
+            string_concat(out, "OTHER", strlen("OTHER"));
+            break;
+        case F_VINYL:
+            string_concat(out, "VINYL", strlen("VINYL"));
+            break;
+        case F_IMAGE:
+            string_concat(out, "IMAGE", strlen("IMAGE"));
+            break;
+        case F_UNOWNED:
+            string_concat(out, "UNOWNED", strlen("UNOWNED"));
+            break;
+    }
+
+    if(isdigital) {
+        string_concat(out, "+D", 2);
+    }
+}
 
 void aio_artstyle_to_string(const enum aio_artstyle as, string *out) {
     if ((as & AS_ANIME) == AS_ANIME) {
@@ -46,27 +114,33 @@ void pretty_tags_handler(string* name, size_t count, void* tagsList) {
 }
 
 void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
-    #define line(title, value) \
-        string_concat(out, title ": ", strlen(title) + 2); \
-        string_concat(out, value, strlen(value)); \
-        string_concat_char(out, '\n')
+#define line(title, value) \
+    string_concat(out, title ": ", strlen(title) + 2); \
+    string_concat(out, value, strlen(value)); \
+    string_concat_char(out, '\n')
 
     char buf[100];
-    #define linef(title, fmt, value) \
-        *buf = 0; \
-        snprintf(buf, 100, fmt, value); \
-        line(title, buf)
+#define linef(title, fmt, value) \
+    *buf = 0; \
+    snprintf(buf, 100, fmt, value); \
+    line(title, buf)
 
     line("Title", entry->en_title);
     line("Native title", entry->native_title);
     line("Type", entry->type);
-    linef("Format", "%u", entry->format);
+
+    string fstring;
+    string_new(&fstring, 32);
+    aio_format_to_string(entry->format, &fstring);
+    const char* c_fstring = string_mkcstr(&fstring);
+    line("Format", c_fstring);
+    string_del(&fstring);
 
     string as;
     string_new(&as, 128);
     aio_artstyle_to_string(entry->art_style, &as);
     const char* c_as = string_mkcstr(&as);
-    linef("Art style", "%s", c_as);
+    line("Art style", c_as);
     string_del(&as);
 
     linef("Item id", "%ld", entry->itemid);
@@ -102,7 +176,7 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
 
 void aio_entryi_parse(const char* json, struct aio_entryi* out) {
     EntryI_json data = json_tokener_parse(json);
-    #define set(key, field) aio_entryi_get_key(data, key, &out->field)
+#define set(key, field) aio_entryi_get_key(data, key, &out->field)
     set("ItemId", itemid);
     set("ItemId", itemid);
     set("ArtStyle", art_style);
