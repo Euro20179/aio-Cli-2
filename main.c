@@ -42,7 +42,7 @@ success:
     sixel_encoder_unref(enc);
 }
 
-void readjsonL(string* line, size_t count) {
+void readjsonL(string* line, size_t count, void* userdata) {
     size_t len = line->len;
     if(len == 0) {
         return;
@@ -74,7 +74,7 @@ int main(const int argc, char* argv[]) {
 
     mkapireq(&out, "/api/v1/list-entries?uid=1");
 
-    string_split(&out, '\n', readjsonL);
+    string_split(&out, '\n', NULL, readjsonL);
 
     string_del(&out);
 

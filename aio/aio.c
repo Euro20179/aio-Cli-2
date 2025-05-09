@@ -1,10 +1,11 @@
 #include "aio.h"
-#include <stdio.h>
 #include <json-c/arraylist.h>
 #include <json-c/json_object.h>
 #include <json-c/json_types.h>
 #include <json-c/linkhash.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #define key(json, name) json_object_object_get(json, name)
@@ -37,18 +38,59 @@ void aio_artstyle_to_string(const enum aio_artstyle as, string *out) {
     string_slice_suffix(out, 2);
 }
 
-void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
-    const size_t en_title_len = strlen(entry->en_title);
+void pretty_tags_handler(string* name, size_t count, void* tagsList) {
+    if(name->len != 0) {
+        string2_concat(tagsList, name);
+        string_concat_char(tagsList, ' ');
+    }
+}
 
+void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
     #define line(title, value) \
-        string_concat(out, title ": ", strlen(value) + 1); \
+        string_concat(out, title ": ", strlen(title) + 2); \
         string_concat(out, value, strlen(value)); \
         string_concat_char(out, '\n')
 
+    char buf[100];
+    #define linef(title, fmt, value) \
+        *buf = 0; \
+        snprintf(buf, 100, fmt, value); \
+        line(title, buf)
+
     line("Title", entry->en_title);
     line("Native title", entry->native_title);
+    line("Type", entry->type);
+    linef("Format", "%u", entry->format);
+    linef("Art style", "%ld", entry->art_style);
+    linef("Item id", "%ld", entry->itemid);
+    linef("Parent id", "%ld", entry->parentid);
+    linef("Copy of", "%ld", entry->copyof);
+    linef("In library", "%ld", entry->library);
+    line("Location", entry->location);
+    linef("Purchase price", "%0.2lf", entry->purchase_price);
+
+    if(entry->collection == 0 || strlen(entry->collection) == 0) {
+        line("Tags", entry->collection);
+    } else {
+        string tagsList;
+        string_new(&tagsList, 32);
+
+        string collection;
+        size_t collection_len = strlen(entry->collection);
+        string_new(&collection, collection_len);
+        string_set(&collection, entry->collection, collection_len);
+
+        string_split(&collection, '\x1F', &tagsList, pretty_tags_handler);
+
+        line("Tags", tagsList.data);
+
+        string_del(&collection);
+        string_del(&tagsList);
+    }
+
 
     #undef line
+    #undef linef
 }
 
 void aio_entryi_parse(const char* json, struct aio_entryi* out) {
@@ -89,7 +131,7 @@ int aio_entryi_get_key(EntryI_json info, const char* key, void* out){
             *(int64_t*)out = json_object_get_int64(data);
             return 0;
         case json_type_double:
-            *(double*)out = json_object_get_boolean(data);
+            *(double*)out = json_object_get_double(data);
             return 0;
         case json_type_string:
             *(const char**)out = json_object_get_string(data);

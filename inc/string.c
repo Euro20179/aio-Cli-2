@@ -43,6 +43,8 @@ void string2_concat(string* to, string* from) {
     }
 
     memcpy(to->data + to->len, from->data, from->len);
+
+    to->len += from->len;
 }
 
 void string_set(string* str, const char* text, size_t n) {
@@ -113,7 +115,7 @@ char string_at(string* str, size_t pos) {
     return str->data[pos];
 }
 
-void string_split(string* str, char sep, void(cb)(string*, size_t)) {
+void string_split(string* str, char sep, void* userdata, void(cb)(string*, size_t, void*)) {
     string cur;
     string_new(&cur, 0);
 
@@ -122,7 +124,7 @@ void string_split(string* str, char sep, void(cb)(string*, size_t)) {
     for(size_t i = 0; i < str->len; i++) {
         char ch = string_at(str, i);
         if(ch == sep) {
-            cb(&cur, count++);
+            cb(&cur, count++, userdata);
             string_clear(&cur);
         } else {
             string_concat_char(&cur, ch);
@@ -130,7 +132,7 @@ void string_split(string* str, char sep, void(cb)(string*, size_t)) {
     }
 
     if(cur.len > 0) {
-        cb(&cur, count);
+        cb(&cur, count, userdata);
     }
 
     string_del(&cur);

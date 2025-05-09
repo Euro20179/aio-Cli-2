@@ -57,6 +57,7 @@ char string_at(string* str, size_t pos);
 //* the string between sep and the end
 //the cb will receive the current string, and the count
 //count is the number of seps found (starting at 0)
-void string_split(string*, char sep, void(cb)(string*, size_t count));
+//userdata will be passed as the last arg to cb
+void string_split(string*, char sep, void* userdata, void(cb)(string*, size_t count, void*));
 
 void string_slice_suffix(string*, size_t amount);
