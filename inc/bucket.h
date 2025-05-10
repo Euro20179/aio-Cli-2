@@ -23,6 +23,8 @@ typedef struct bucket{
 
 void _bucket_new(bucket*, size_t len, size_t member_size);
 
+void bucket_del(bucket*);
+
 size_t bucket_size(bucket*);
 
 //is the bucket full currently
@@ -49,3 +51,6 @@ void** bucket_get_ref(bucket*, size_t idx);
 //returns the value at idx
 //returns NULL if idx is out of bounds
 void* bucket_get(bucket*, size_t idx);
+
+//increases size by amount
+void bucket_increase_size(bucket*, size_t amount);

@@ -12,6 +12,14 @@ void _bucket_new(bucket* arr, size_t len, size_t member_size) {
     arr->initialized = 1;
 }
 
+void bucket_del(bucket* b) {
+    free(b->items);
+    b->initialized = 0;
+    b->member_size = 0;
+    b->allocated = 0;
+    b->items = 0;
+}
+
 size_t bucket_size(bucket * arr) {
     return arr->allocated;
 }
@@ -72,4 +80,9 @@ void* bucket_get(bucket* arr, size_t idx) {
         return NULL;
     }
     return arr->items[idx * arr->member_size];
+}
+
+void bucket_increase_size(bucket * b, size_t amount) {
+    b->items = realloc(b->items, (b->allocated + amount) * b->member_size);
+    b->allocated += amount;
 }

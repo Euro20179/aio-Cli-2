@@ -123,32 +123,32 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
     //create a line from title, an sprintf format, and value
 #define linef(title, fmt, value) { \
     char buf[100]; \
-    *buf = 0; \
+    buf[0] = 0; \
     snprintf(buf, 100, fmt, value); \
     line(title, buf); \
 }
 
 
     //create a line by first converting the value to a string via a conversion func
-    string line_from_string_buf;
-    string_new(&line_from_string_buf, 128);
 #define line_from_string(title, value, convert) { \
+    string line_from_string_buf; \
+    string_new(&line_from_string_buf, 128); \
     const char* c_sbuf; \
     convert(value, &line_from_string_buf); \
     c_sbuf = string_mkcstr(&line_from_string_buf); \
     line(title, c_sbuf); \
+    string_del(&line_from_string_buf); \
 }
 
 
     line("Title", entry->en_title);
     line("Native title", entry->native_title);
     line("Type", entry->type);
-
+    //
     line_from_string("Format", entry->format, aio_format_to_string);
     line_from_string("Art style", entry->art_style, aio_artstyle_to_string);
-
-    string_del(&line_from_string_buf);
-
+    //
+    //
     linef("Item id", "%ld", entry->itemid);
     linef("Parent id", "%ld", entry->parentid);
     linef("Copy of", "%ld", entry->copyof);
@@ -169,7 +169,7 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
 
         string_split(&collection, '\x1F', &tagsList, pretty_tags_handler);
 
-        line("Tags", tagsList.data);
+        line("Tags", string_mkcstr(&tagsList));
 
         string_del(&collection);
         string_del(&tagsList);

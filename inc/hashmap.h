@@ -16,9 +16,13 @@ void _hashmap_item_destroy(struct _hashmap_item*);
 
 typedef struct {
     bucket(struct _hashmap_item*) items;
+
+    size_t item_count;
 } hashmap;
 
 void hashmap_new(hashmap*);
+
+void hashmap_del(hashmap*);
 
 //if item is not found, return NULL
 void* hashmap_get(hashmap*, const char* key);
