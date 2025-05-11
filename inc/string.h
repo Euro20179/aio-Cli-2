@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdbool.h>
 #include <stddef.h>
 
 //creates a stack allocated char buffer for string that is the correct size for string_to_cstr
@@ -9,7 +10,7 @@ typedef struct{
     size_t len;
     char* data;
     size_t allocated;
-    int initialized : 1;
+    bool initialized;
 } string;
 
 ///creates a new string
@@ -24,6 +25,8 @@ void string_del(string* str);
 ///*DOES NOT* allocate more memory if text is larger than str's remaining space
 ///to get more space use `string_extend`
 void string_set(string* str, const char* text, size_t n);
+
+void string_cpy(string* to, string* from);
 
 void string_concat_char(string* str, char c);
 

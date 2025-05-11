@@ -1,4 +1,5 @@
 #include "llist.h"
+#include <stdio.h>
 #include <stdlib.h>
 
 llist_node* llist_node_create(void* data) {
@@ -19,11 +20,28 @@ void llist_new(llist * l) {
 }
 
 void llist_append(llist* l, void *data) {
-    l->last->next = llist_node_create(data);
     l->len++;
-    l->last = l->last->next;
-
     if(l->head == NULL) {
-        l->head = l->last;
+        l->head = llist_node_create(data);
+        l->last = l->head;
+    } else {
+        l->last->next = llist_node_create(data);
+        l->last = l->last->next;
     }
+}
+
+void llist_del(llist* l) {
+    llist_node* cur = l->head;
+    while(cur != NULL) {
+        llist_node* next_cur = cur->next;
+        llist_node_destroy(cur);
+        cur = next_cur;
+    }
+    l->head = 0;
+    l->last = 0;
+    l->len = 0;
+}
+
+void llist_clear(llist* l) {
+    llist_del(l);
 }

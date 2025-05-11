@@ -18,6 +18,7 @@
 #include "url.h"
 #include "inc/string.h"
 #include "aio/aio.h"
+#include "inc/llist.h"
 
 //initizlied in main
 static hashmap items;
@@ -121,11 +122,47 @@ void action_search(char* search) {
     user_search(search);
 }
 
+struct argv_actions_state {
+    size_t arg_count;
+    llist action_args;
+    size_t waiting_on_n_more_args;
+
+    const char* action;
+};
+
 void handle_action(string* action, size_t action_no, void* userdata) {
     char* act = string_mkcstr(action);
 
-    if(strncmp(act, "s", 1) == 0) {
-        action_search(NULL);
+    struct argv_actions_state* state = userdata;
+
+    bool just_hit_0 = false;
+
+    if(state->waiting_on_n_more_args > 0) {
+        state->waiting_on_n_more_args--;
+        if(state->waiting_on_n_more_args == 0) {
+            just_hit_0 = true;
+        }
+
+        state->arg_count++;
+
+        string action_cpy;
+        string_new(&action_cpy, action->len);
+        string_cpy(&action_cpy, action);
+
+        llist_append(&state->action_args, &action_cpy);
+    } else if(strncmp(act, "s", 1) == 0) {
+        state->waiting_on_n_more_args = 1;
+        state->action = "s";
+    } 
+
+    if (just_hit_0) {
+        if(state->action[0] == 's') {
+            string* search = state->action_args.head->data;
+            char* s = string_mkcstr(search);
+            action_search(s);
+            llist_clear(&state->action_args);
+            string_del(search);
+        }
     }
 }
 
@@ -133,7 +170,15 @@ void handle_argv_actions(char* raw_actions[], size_t total_len) {
     string actions;
     string_new(&actions, total_len);
     string_set(&actions, raw_actions[0], total_len);
-    string_split(&actions, '\0', NULL, handle_action);
+
+    struct argv_actions_state state;
+    state.arg_count = 0;
+    llist_new(&state.action_args);
+    state.waiting_on_n_more_args = 0;
+
+    string_split(&actions, '\0', &state, handle_action);
+
+    llist_del(&state.action_args);
     string_del(&actions);
 }
 

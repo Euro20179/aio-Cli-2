@@ -20,4 +20,8 @@ typedef struct {
 
 void llist_new(llist*);
 
+void llist_del(llist*);
+
 void llist_append(llist*, void* data);
+
+void llist_clear(llist*);

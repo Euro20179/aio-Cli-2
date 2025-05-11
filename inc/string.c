@@ -7,8 +7,6 @@
 #include <sys/types.h>
 
 void string_new(string* strout, size_t len) {
-    if(strout->initialized == 1) return;
-
     strout->allocated = len;
     strout->len = 0;
 
@@ -18,7 +16,7 @@ void string_new(string* strout, size_t len) {
 }
 
 void string_del(string* str) {
-    if(!str->initialized) return;
+    if(str->initialized != true) return;
     str->initialized = 0;
     str->len = 0;
     str->allocated = 0;
@@ -26,7 +24,7 @@ void string_del(string* str) {
 }
 
 void string_concat(string* str, const char* text, size_t textlen) {
-    if(!str->initialized) {
+    if(str->initialized != true) {
         return;
     }
     if(textlen + str->len > str->allocated) {
@@ -48,7 +46,7 @@ void string2_concat(string* to, string* from) {
 }
 
 void string_set(string* str, const char* text, size_t n) {
-    if(!str->initialized) return;
+    if(str->initialized != true) return;
 
     if(n > str->allocated) {
         n = str->allocated;
@@ -78,14 +76,14 @@ void string_concat_char(string *str, char c) {
 }
 
 void string_extend(string *str, size_t amount) {
-    if(!str->initialized) return;
+    if(str->initialized != true) return;
     str->allocated += amount;
     str->data = realloc(str->data, str->allocated);
 }
 
 
 void string_to_cstr(string *str, char *out) {
-    if(!str->initialized || str->len < 1) {
+    if(str->initialized != true || str->len < 1) {
         out[0] = 0;
         return;
     }
@@ -114,7 +112,7 @@ void string_copy(string* str, string* ostring) {
 }
 
 char string_at(string* str, size_t pos) {
-    if(!str->initialized || pos >= str->len) {
+    if(str->initialized != true || pos >= str->len) {
         return 0;
     }
     return str->data[pos];
@@ -131,6 +129,7 @@ void string_split(string* str, char sep, void* userdata, void(cb)(string*, size_
         if(ch == sep) {
             cb(&cur, count++, userdata);
             string_clear(&cur);
+            cur.len = 0;
         } else {
             string_concat_char(&cur, ch);
         }
@@ -157,4 +156,12 @@ void string_tr(string * str, char from, char to) {
             string_set_char_at(str, to, i);
         }
     }
+}
+
+void string_cpy(string* to, string* from) {
+    if(to->allocated < from->allocated) {
+        string_extend(to, from->len);
+    }
+    to->len = from->len;
+    memcpy(to->data, from->data, from->len);
 }
