@@ -66,7 +66,8 @@ struct aio_entryi{
 
 void aio_artstyle_to_string(const enum aio_artstyle, string* out);
 
-void aio_entryi_parse(const char* json, struct aio_entryi* out);
+//returns -1 if json is not parsable
+int aio_entryi_parse(const char* json, struct aio_entryi* out);
 
 int aio_entryi_get_key(EntryI_json info, const char* key, void* out);
 

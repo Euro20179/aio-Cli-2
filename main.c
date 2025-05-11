@@ -58,7 +58,10 @@ void create_entry_items(string* line, size_t count, void* userdata) {
     string_to_cstr(line, buf);
 
     struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
-    aio_entryi_parse(buf, entry);
+    if(aio_entryi_parse(buf, entry) == -1) {
+        fprintf(stderr, "%s\n", buf);
+        return;
+    }
 
     char idbuf[32];
     idbuf[0] = 0;
@@ -78,26 +81,35 @@ int add(int a, int b) {
     return a + b;
 }
 
-void user_search() {
+void user_search(const char* search) {
     string out;
     string_new(&out, 0);
 
     hashmap_new(&items);
 
-    printf("\x1b[1mSearch > \x1b[0m");
-    fflush(stdout);
-    char buf[48];
-    ssize_t bytes_read = read(STDIN_FILENO, buf, 47);
-    if(buf[bytes_read - 1] == '\n') {
-        //we want to override the new line
-        bytes_read -= 1;
-    }
-    buf[bytes_read] = 0;
-
     char pathbuf[48 + 32];
-    snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", buf);
 
-    mkapireq(&out,pathbuf);
+    if(search == 0) {
+        char buf[48];
+        printf("\x1b[1mSearch > \x1b[0m");
+        fflush(stdout);
+        ssize_t bytes_read = read(STDIN_FILENO, buf, 47);
+        if(buf[bytes_read - 1] == '\n') {
+            //we want to override the new line
+            bytes_read -= 1;
+        }
+        buf[bytes_read] = 0;
+        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", buf);
+    } else {
+        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", search);
+    }
+
+    char buf[CURL_ERROR_SIZE];
+
+    CURLcode res = mkapireq(&out,pathbuf, buf);
+    if(res != 0) {
+        printf("%s\n", buf);
+    }
 
     string_split(&out, '\n', NULL, create_entry_items);
 
@@ -105,10 +117,42 @@ void user_search() {
     hashmap_del(&items);
 }
 
+void action_search(char* search) {
+    user_search(search);
+}
+
+void handle_action(string* action, size_t action_no, void* userdata) {
+    char* act = string_mkcstr(action);
+
+    if(strncmp(act, "s", 1) == 0) {
+        action_search(NULL);
+    }
+}
+
+void handle_argv_actions(char* raw_actions[], size_t total_len) {
+    string actions;
+    string_new(&actions, total_len);
+    string_set(&actions, raw_actions[0], total_len);
+    string_split(&actions, '\0', NULL, handle_action);
+    string_del(&actions);
+}
+
 int main(const int argc, char* argv[]) {
     errf = fopen("./log", "w");
 
-    user_search();
+    if(argc > 1) {
+        //this assumes the strings are stored next to each other in an array which i dont think is necessarily true
+        size_t total_argv_len = (argv[argc-1] + strlen(argv[argc - 1])) - argv[1];
+        handle_argv_actions(&(argv[1]), total_argv_len);
+        return 0;
+    }
+
+    char* search = NULL;
+    if(argc > 1) {
+        search = argv[1];
+    }
+
+    action_search(search);
 
     close(errf->_fileno);
 }

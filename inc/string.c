@@ -7,7 +7,7 @@
 #include <sys/types.h>
 
 void string_new(string* strout, size_t len) {
-    if(strout->initialized) return;
+    if(strout->initialized == 1) return;
 
     strout->allocated = len;
     strout->len = 0;
@@ -149,4 +149,12 @@ void string_slice_suffix(string * str, size_t amount) {
 
 size_t string_len(string * str) {
     return str->len;
+}
+
+void string_tr(string * str, char from, char to) {
+    for(size_t i = 0; i < str->len; i++) {
+        if (string_at(str, i) == from) {
+            string_set_char_at(str, to, i);
+        }
+    }
 }

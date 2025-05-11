@@ -181,8 +181,12 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out) {
     #undef line_from_string
 }
 
-void aio_entryi_parse(const char* json, struct aio_entryi* out) {
+int aio_entryi_parse(const char* json, struct aio_entryi* out) {
     EntryI_json data = json_tokener_parse(json);
+    if(data == NULL) {
+        return -1;
+    }
+
 #define set(key, field) aio_entryi_get_key(data, key, &out->field)
     set("ItemId", itemid);
     set("ItemId", itemid);

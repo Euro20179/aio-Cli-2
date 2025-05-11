@@ -64,3 +64,6 @@ void string_slice_suffix(string*, size_t amount);
 
 //adds a NULL terminator to the end of str, then returns the raw data, effectively this makes a cstring
 char* string_mkcstr(string* str);
+
+//translate any occurance of from to to
+void string_tr(string*, char from, char to);
