@@ -92,8 +92,8 @@ void user_search(const char* search) {
 
     if(search == 0) {
         char buf[48];
-        printf("\x1b[1mSearch > \x1b[0m");
-        fflush(stdout);
+        fprintf(stderr, "\x1b[1mSearch > \x1b[0m");
+        fflush(stderr);
         ssize_t bytes_read = read(STDIN_FILENO, buf, 47);
         if(buf[bytes_read - 1] == '\n') {
             //we want to override the new line
@@ -109,7 +109,7 @@ void user_search(const char* search) {
 
     CURLcode res = mkapireq(&out,pathbuf, buf);
     if(res != 0) {
-        printf("%s\n", buf);
+        fprintf(errf, "%s\n", buf);
     }
 
     string_split(&out, '\n', NULL, create_entry_items);
