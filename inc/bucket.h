@@ -54,3 +54,5 @@ void* bucket_get(bucket*, size_t idx);
 
 //increases size by amount
 void bucket_increase_size(bucket*, size_t amount);
+
+bool bucket_full_at(bucket*, size_t idx);

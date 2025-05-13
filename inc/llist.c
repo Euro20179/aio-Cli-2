@@ -45,3 +45,14 @@ void llist_del(llist* l) {
 void llist_clear(llist* l) {
     llist_del(l);
 }
+
+void llist_remove(llist* l, size_t idx) {
+    llist_node* cur = l->head;
+    size_t cur_idx = 0;
+    llist_node* prev = NULL;
+    while(cur_idx < idx && cur->next != NULL) {
+        prev = cur;
+        cur = cur->next;
+    }
+    llist_node_destroy(cur);
+}

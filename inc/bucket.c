@@ -1,5 +1,6 @@
 #include "bucket.h"
 #include <stddef.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -59,6 +60,13 @@ int bucket_remove(bucket* arr, size_t idx) {
     return 0;
 }
 
+bool bucket_full_at(bucket* arr, size_t idx) {
+    if(arr->items[idx] == NULL) {
+        return false;
+    }
+    return true;
+}
+
 int bucket_at(bucket* arr, size_t idx, void* out) {
     if(idx >= arr->allocated) {
         return -1;
@@ -66,6 +74,7 @@ int bucket_at(bucket* arr, size_t idx, void* out) {
     memcpy(out, arr->items + (idx * arr->member_size), arr->member_size);
     return 0;
 }
+
 
 void** bucket_get_ref(bucket* arr, size_t idx) {
     if(idx >= arr->allocated) {
