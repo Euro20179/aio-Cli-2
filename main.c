@@ -151,11 +151,10 @@ void handle_action(string* action, size_t action_no, void* userdata) {
 
         state->arg_count++;
 
-        string action_cpy;
-        string_new(&action_cpy, action->len);
-        string_cpy(&action_cpy, action);
+        string* action_cpy = string_new2(action->len);
+        string_cpy(action_cpy, action);
 
-        llist_append(&state->action_args, &action_cpy);
+        llist_append(&state->action_args, action_cpy);
     } else if(strncmp(act, "s", 1) == 0) {
         state->waiting_on_n_more_args = 1;
         state->action = "s";
@@ -166,8 +165,12 @@ void handle_action(string* action, size_t action_no, void* userdata) {
     if (just_hit_0) {
         if(state->action[0] == 's') {
             string* search = state->action_args.head->data;
-            char* s = string_mkcstr(search);
+            string* uri = string_new2(string_len(search));
+
+            string_uri_encode(search, uri);
+            char* s = string_mkcstr(uri);
             action_search(s);
+            string_del(uri);
             llist_clear(&state->action_args);
             string_del(search);
         }
