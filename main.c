@@ -23,6 +23,7 @@
 
 //initizlied in main
 static hashmap items;
+static bool items_allocated = false;
 
 void printSixel(const char* path) {
     sixel_encoder_t* enc;
@@ -88,11 +89,22 @@ void user_print_all() {
     hashmap_foreach(&items, print_item);
 }
 
+void del_item(void* item) {
+    struct aio_entryi* i = item;
+    free(i);
+}
+
 void user_search(const char* search) {
     string out;
     string_new(&out, 0);
 
-    hashmap_new(&items);
+    if (!items_allocated) {
+        hashmap_new(&items);
+        items_allocated = true;
+    } else {
+        hashmap_del_each(&items, del_item);
+        hashmap_new(&items);
+    }
 
     char pathbuf[48 + 32];
 
@@ -140,6 +152,7 @@ void handle_action(string* action, size_t action_no, void* userdata) {
 
     struct argv_actions_state* state = userdata;
 
+    //keeps track of whether or not we got the final arg that we were waiting for
     bool just_hit_0 = false;
 
     if(state->waiting_on_n_more_args > 0) {
@@ -163,12 +176,14 @@ void handle_action(string* action, size_t action_no, void* userdata) {
 
     if (just_hit_0) {
         if(state->action[0] == 's') {
-            string* search = state->action_args.head->data;
+            string* search = llist_at(&state->action_args, 0);
             string* uri = string_new2(string_len(search));
 
             string_uri_encode(search, uri);
+
             char* s = string_mkcstr(uri);
             action_search(s);
+
             string_del(uri);
             llist_clear(&state->action_args);
             string_del(search);
