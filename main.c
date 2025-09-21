@@ -1,13 +1,14 @@
-#include <json-c/arraylist.h>
-#include <json-c/json_object.h>
-#include <json-c/json_tokener.h>
-#include <json-c/json_types.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
 
+#include <json-c/arraylist.h>
+#include <json-c/json_object.h>
+#include <json-c/json_tokener.h>
+#include <json-c/json_types.h>
 #include <json-c/json.h>
+
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <sixel.h>
@@ -48,7 +49,6 @@ success:
     sixel_encoder_unref(enc);
 }
 
-
 void create_entry_items(string* line, size_t count, void* userdata) {
     size_t len = line->len;
     if(len == 0) {
@@ -68,18 +68,25 @@ void create_entry_items(string* line, size_t count, void* userdata) {
     idbuf[0] = 0;
     snprintf(idbuf, 32, "%ld", entry->itemid);
 
-    string human;
-    string_new(&human, 256);
-    aio_entryi_to_human_str(entry, &human);
-    printf("%s\n", string_mkcstr(&human));
-
-    string_del(&human);
-
     hashmap_set(&items, idbuf, entry);
 }
 
 int add(int a, int b) {
     return a + b;
+}
+
+void print_item(void* item) {
+    struct aio_entryi* a = item;
+    string str;
+    string_new(&str, 256);
+    printf("%zu\n", (a)->itemid);
+    aio_entryi_to_human_str(a, &str);
+    printf("%s\n", string_mkcstr(&str));
+    string_del(&str);
+}
+
+void user_print_all() {
+    hashmap_foreach(&items, print_item);
 }
 
 void user_search(const char* search) {
@@ -115,7 +122,6 @@ void user_search(const char* search) {
     string_split(&out, '\n', NULL, create_entry_items);
 
     string_del(&out);
-    hashmap_del(&items);
 }
 
 void action_search(char* search) {
@@ -153,7 +159,9 @@ void handle_action(string* action, size_t action_no, void* userdata) {
     } else if(strncmp(act, "s", 1) == 0) {
         state->waiting_on_n_more_args = 1;
         state->action = "s";
-    } 
+    } else if(strncmp(act, "p", 1) == 0) {
+        user_print_all();
+    }
 
     if (just_hit_0) {
         if(state->action[0] == 's') {
