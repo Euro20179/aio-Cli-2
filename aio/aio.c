@@ -233,4 +233,13 @@ int aio_entryi_get_key(EntryI_json info, const char* key, void* out){
 }
 
 
+
+void aio_id_to_string(const aioid_t id, string * out) {
+    char idbuf[32];
+    idbuf[0] = 0;
+    snprintf(idbuf, 32, "%ld", id);
+    int len = strlen(idbuf);
+    string_concat(out, idbuf, len);
+}
+
 #undef key

@@ -16,6 +16,8 @@ typedef json_object* Events_json;
 
 typedef char* MediaType;
 
+typedef int64_t aioid_t;
+
 
 enum aio_artstyle : int64_t{
     AS_ANIME = 1,
@@ -50,16 +52,16 @@ enum aio_entryformat : uint32_t {
 };
 
 struct aio_entryi{
-    int64_t itemid;
+    aioid_t itemid;
     const char* en_title;
     const char* native_title;
     const char* location;
     double purchase_price;
-    int64_t parentid;
+    aioid_t parentid;
     const char* type;
     enum aio_artstyle art_style;
-    int64_t copyof;
-    int64_t library;
+    aioid_t copyof;
+    aioid_t library;
     enum aio_entryformat format;
     const char* collection;
 };
@@ -72,3 +74,5 @@ int aio_entryi_parse(const char* json, struct aio_entryi* out);
 int aio_entryi_get_key(EntryI_json info, const char* key, void* out);
 
 void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out);
+
+void aio_id_to_string(const aioid_t, string*);

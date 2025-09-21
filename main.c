@@ -4,40 +4,85 @@
 #include <unistd.h>
 
 #include <json-c/arraylist.h>
+#include <json-c/json.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
 #include <json-c/json_types.h>
-#include <json-c/json.h>
 
 #include <curl/curl.h>
 #include <curl/easy.h>
 #include <sixel.h>
+#include <vips/vips.h>
 
 #include "aio/aio.h"
 #include "globals.h"
 #include "inc/hashmap.h"
-#include "url.h"
-#include "inc/string.h"
-#include "aio/aio.h"
 #include "inc/llist.h"
+#include "inc/string.h"
+#include "url.h"
 
-//initizlied in main
+#include "selector/selector.h"
+
+// initizlied in main
 static hashmap items;
+static array* itemids;
 static bool items_allocated = false;
 
-void printSixel(const char* path) {
-    sixel_encoder_t* enc;
-    SIXELSTATUS status = sixel_encoder_new(&enc, NULL);
-    if(SIXEL_FAILED(status)) {
+int sixel_write(char* data, int size, void* priv)
+{
+    string* out = priv;
+    string_concat(out, data, size);
+    return 0;
+}
+
+void printSixel(const char* path, string* sixelOut)
+{
+    sixel_output_t* out;
+    SIXELSTATUS status = sixel_output_new(&out, sixel_write, sixelOut, NULL);
+    if (SIXEL_FAILED(status)) {
         goto error;
     }
 
-    const char* width = "300";
+    VIPS_INIT("test");
 
-    sixel_encoder_setopt(enc, 'w', width);
+    VipsImage* x;
+    if (!(x = vips_image_new_from_file(path, NULL))) {
+        vips_error_exit(NULL);
+    }
 
-    status = sixel_encoder_encode(enc, path);
-    if(SIXEL_FAILED(status)) {
+    VipsImage* conv;
+    if (vips_colourspace(x, &conv, VIPS_INTERPRETATION_sRGB, NULL) == -1) {
+        vips_error_exit(NULL);
+    };
+
+    bool has_alpha = 0;
+
+    VipsImage* flattened;
+    if (vips_image_hasalpha(conv)) {
+        if (vips_flatten(conv, &flattened, NULL) == -1) {
+            vips_error_exit(NULL);
+        }
+        has_alpha = 1;
+    } else {
+        flattened = conv;
+    }
+
+    uint8_t* buf;
+    size_t len;
+    if (!(buf = vips_image_write_to_memory(flattened, &len))) {
+        vips_error_exit(NULL);
+    }
+
+    // int x, y, n;
+    // uint8_t* data = stbi_load(path, &x, &y, &n, 0);
+    //
+    int height = vips_image_get_height(flattened);
+    int width = vips_image_get_width(flattened);
+    sixel_dither_t* dither;
+    sixel_dither_new(&dither, -1, NULL);
+    sixel_dither_initialize(dither, buf, width, height, SIXEL_PIXELFORMAT_RGB888, SIXEL_LARGE_LUM, SIXEL_REP_CENTER_BOX, SIXEL_QUALITY_HIGH);
+    status = sixel_encode(buf, width, height, PIXELFORMAT_RGB888, dither, out);
+    if (SIXEL_FAILED(status)) {
         goto error;
     }
 
@@ -47,12 +92,20 @@ error:
     fprintf(stderr, "%s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
 
 success:
-    sixel_encoder_unref(enc);
+    sixel_output_unref(out);
+    g_object_unref(x);
+    g_object_unref(conv);
+    if (has_alpha) {
+        //only free this if the image has alpha otherwise we get double free
+        g_object_unref(flattened);
+    }
+    // sixel_encoder_unref(enc);
 }
 
-void create_entry_items(string* line, size_t count, void* userdata) {
+void create_entry_items(string* line, size_t count, void* userdata)
+{
     size_t len = line->len;
-    if(len == 0) {
+    if (len == 0) {
         return;
     }
 
@@ -60,7 +113,7 @@ void create_entry_items(string* line, size_t count, void* userdata) {
     string_to_cstr(line, buf);
 
     struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
-    if(aio_entryi_parse(buf, entry) == -1) {
+    if (aio_entryi_parse(buf, entry) == -1) {
         fprintf(stderr, "%s\n", buf);
         return;
     }
@@ -69,14 +122,17 @@ void create_entry_items(string* line, size_t count, void* userdata) {
     idbuf[0] = 0;
     snprintf(idbuf, 32, "%ld", entry->itemid);
 
+    array_append(itemids, &entry->itemid);
     hashmap_set(&items, idbuf, entry);
 }
 
-int add(int a, int b) {
+int add(int a, int b)
+{
     return a + b;
 }
 
-void print_item(void* item) {
+void print_item(void* item)
+{
     struct aio_entryi* a = item;
     string str;
     string_new(&str, 256);
@@ -85,36 +141,42 @@ void print_item(void* item) {
     string_del(&str);
 }
 
-void user_print_all() {
+void user_print_all()
+{
     hashmap_foreach(&items, print_item);
 }
 
-void del_item(void* item) {
+void del_item(void* item)
+{
     struct aio_entryi* i = item;
     free(i);
 }
 
-void user_search(const char* search) {
+void user_search(const char* search)
+{
     string out;
     string_new(&out, 0);
 
     if (!items_allocated) {
         hashmap_new(&items);
+        itemids = array_new2(0, sizeof(aioid_t));
         items_allocated = true;
     } else {
         hashmap_del_each(&items, del_item);
         hashmap_new(&items);
+        array_del2(itemids);
+        itemids = array_new2(0, sizeof(aioid_t));
     }
 
     char pathbuf[48 + 32];
 
-    if(search == 0) {
+    if (search == 0) {
         char buf[48];
         fprintf(stderr, "\x1b[1mSearch > \x1b[0m");
         fflush(stderr);
         ssize_t bytes_read = read(STDIN_FILENO, buf, 47);
-        if(buf[bytes_read - 1] == '\n') {
-            //we want to override the new line
+        if (buf[bytes_read - 1] == '\n') {
+            // we want to override the new line
             bytes_read -= 1;
         }
         buf[bytes_read] = 0;
@@ -125,8 +187,8 @@ void user_search(const char* search) {
 
     char buf[CURL_ERROR_SIZE];
 
-    CURLcode res = mkapireq(&out,pathbuf, buf);
-    if(res != 0) {
+    CURLcode res = mkapireq(&out, pathbuf, buf);
+    if (res != 0) {
         fprintf(errf, "%s\n", buf);
     }
 
@@ -135,7 +197,8 @@ void user_search(const char* search) {
     string_del(&out);
 }
 
-void action_search(char* search) {
+void action_search(char* search)
+{
     user_search(search);
 }
 
@@ -147,17 +210,18 @@ struct argv_actions_state {
     const char* action;
 };
 
-void handle_action(string* action, size_t action_no, void* userdata) {
+void handle_action(string* action, size_t action_no, void* userdata)
+{
     char* act = string_mkcstr(action);
 
     struct argv_actions_state* state = userdata;
 
-    //keeps track of whether or not we got the final arg that we were waiting for
+    // keeps track of whether or not we got the final arg that we were waiting for
     bool just_hit_0 = false;
 
-    if(state->waiting_on_n_more_args > 0) {
+    if (state->waiting_on_n_more_args > 0) {
         state->waiting_on_n_more_args--;
-        if(state->waiting_on_n_more_args == 0) {
+        if (state->waiting_on_n_more_args == 0) {
             just_hit_0 = true;
         }
 
@@ -167,15 +231,15 @@ void handle_action(string* action, size_t action_no, void* userdata) {
         string_cpy(action_cpy, action);
 
         llist_append(&state->action_args, action_cpy);
-    } else if(strncmp(act, "s", 1) == 0) {
+    } else if (strncmp(act, "s", 1) == 0) {
         state->waiting_on_n_more_args = 1;
         state->action = "s";
-    } else if(strncmp(act, "p", 1) == 0) {
+    } else if (strncmp(act, "p", 1) == 0) {
         user_print_all();
     }
 
     if (just_hit_0) {
-        if(state->action[0] == 's') {
+        if (state->action[0] == 's') {
             string* search = llist_at(&state->action_args, 0);
             string* uri = string_new2(string_len(search));
 
@@ -191,7 +255,8 @@ void handle_action(string* action, size_t action_no, void* userdata) {
     }
 }
 
-void handle_argv_actions(char* raw_actions[], size_t total_len) {
+void handle_argv_actions(char* raw_actions[], size_t total_len)
+{
     string actions;
     string_new(&actions, total_len);
     string_set(&actions, raw_actions[0], total_len);
@@ -207,22 +272,70 @@ void handle_argv_actions(char* raw_actions[], size_t total_len) {
     string_del(&actions);
 }
 
-int main(const int argc, char* argv[]) {
+string* preview(selector_id_t id)
+{
+    string* out = string_new2(100);
+    // string_set(out, "very\ncool", 9);
+    // string* sixel_out = string_new2(0);
+    // CURL* c = curl_easy_init();
+    // string* image = string_new2(0);
+    aioid_t i = *(aioid_t*)array_at(itemids, id);
+    string* idstr = string_new2(0);
+    aio_id_to_string(i, idstr);
+    char* line = string_mkcstr(idstr);
+    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, line);
+    string_del2(idstr);
+    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m\n", array_len(itemids), entry->itemid, entry->en_title);
+    if(entry->native_title[0] != 0) {
+        string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
+    }
+    if(entry->collection[0] != 0) {
+        for(int i = 0; i < strnlen(entry->collection, 100); i++) {
+            if(entry->collection[i] == '\x1F') {
+                ((char*)entry->collection)[i] = ' ';
+            }
+        }
+        string_nconcatf(out, 1000, "\x1b[35mTags: %s\x1b[0m\n", entry->collection);
+    }
+    string_nconcatf(out, 1000, "\x1b[36mType: %s\x1b[0m\n", entry->type);
+    // printSixel("/home/euro/Pictures/memes/audiophiles.png", sixel_out);
+    return out;
+}
+
+int main(const int argc, char* argv[])
+{
     errf = fopen("./log", "w");
 
-    if(argc > 1) {
-        //this assumes the strings are stored next to each other in an array which i dont think is necessarily true
-        size_t total_argv_len = (argv[argc-1] + strlen(argv[argc - 1])) - argv[1];
+    if (argc > 1) {
+        // this assumes the strings are stored next to each other in an array which i dont think is necessarily true
+        size_t total_argv_len = (argv[argc - 1] + strlen(argv[argc - 1])) - argv[1];
         handle_argv_actions(&(argv[1]), total_argv_len);
         return 0;
     }
 
     char* search = NULL;
-    if(argc > 1) {
+    if (argc > 1) {
         search = argv[1];
     }
 
     action_search(search);
+
+    struct selector_action_handlers actions = {
+        .on_hover = NULL,
+        .preview_gen = preview,
+    };
+    array* lines = array_new2(0, sizeof(const char**));
+    for (size_t i = 0; i < array_len(itemids); i++) {
+        aioid_t idint = *(aioid_t*)array_at(itemids, i);
+        string* id = string_new2(0);
+        aio_id_to_string(idint, id);
+        char* line = string_mkcstr(id);
+        struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, line);
+        array_append(lines, &entry->en_title);
+    }
+    selector* s = selector_new2(actions, lines);
+    selector_id_t row = selector_select(s);
+    const char* z = selector_get_by_id(s, row);
 
     close(errf->_fileno);
 }
