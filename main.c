@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -25,6 +26,7 @@
 
 // initizlied in main
 static hashmap items;
+static hashmap metadata;
 static array* itemids;
 static bool items_allocated = false;
 
@@ -126,6 +128,28 @@ void create_entry_items(string* line, size_t count, void* userdata)
     hashmap_set(&items, idbuf, entry);
 }
 
+void create_metadata_items(string* line, size_t count, void* userdata) {
+    size_t len = line->len;
+    if(len == 0) {
+        return;
+    }
+
+    string_to_cstr_buf_create(buf, (*line));
+    string_to_cstr(line, buf);
+
+    struct aio_entrym* entry = aio_entrym_new();
+    if(aio_entrym_parse(buf, entry) == -1) {
+        fprintf(stderr, "%s\n", buf);
+        return;
+    }
+
+    char idbuf[32];
+    idbuf[0] = 0;
+    snprintf(idbuf, 32, "%ld", entry->itemid);
+
+    hashmap_set(&metadata, idbuf, entry);
+}
+
 int add(int a, int b)
 {
     return a + b;
@@ -148,8 +172,7 @@ void user_print_all()
 
 void del_item(void* item)
 {
-    struct aio_entryi* i = item;
-    free(i);
+    free(item);
 }
 
 void user_search(const char* search)
@@ -159,10 +182,13 @@ void user_search(const char* search)
 
     if (!items_allocated) {
         hashmap_new(&items);
+        hashmap_new(&metadata);
         itemids = array_new2(0, sizeof(aioid_t));
         items_allocated = true;
     } else {
         hashmap_del_each(&items, del_item);
+        hashmap_del_each(&metadata, del_item);
+        hashmap_new(&metadata);
         hashmap_new(&items);
         array_del2(itemids);
         itemids = array_new2(0, sizeof(aioid_t));
@@ -194,6 +220,15 @@ void user_search(const char* search)
 
     string_split(&out, '\n', NULL, create_entry_items);
 
+    string_del(&out);
+
+    const char* metadataPath = "/api/v1/metadata/list-entries?uid=1";
+    string_new(&out, 0);
+    res = mkapireq(&out, metadataPath, buf);
+    if (res != 0) {
+        fprintf(errf, "%s\n", buf);
+    }
+    string_split(&out, '\n', NULL, create_metadata_items);
     string_del(&out);
 }
 
@@ -272,8 +307,9 @@ void handle_argv_actions(char* raw_actions[], size_t total_len)
     string_del(&actions);
 }
 
-string* preview(selector_id_t id)
+string* preview(struct selector_preview_info info)
 {
+    selector_id_t id = info.id;
     string* out = string_new2(100);
     // string_set(out, "very\ncool", 9);
     // string* sixel_out = string_new2(0);
@@ -283,9 +319,12 @@ string* preview(selector_id_t id)
     string* idstr = string_new2(0);
     aio_id_to_string(i, idstr);
     char* line = string_mkcstr(idstr);
+
     struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, line);
+    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(&metadata, line);
+
     string_del2(idstr);
-    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m\n", array_len(itemids), entry->itemid, entry->en_title);
+    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(itemids), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
     if(entry->native_title[0] != 0) {
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
     }
@@ -297,8 +336,22 @@ string* preview(selector_id_t id)
         }
         string_nconcatf(out, 1000, "\x1b[35mTags: %s\x1b[0m\n", entry->collection);
     }
-    string_nconcatf(out, 1000, "\x1b[36mType: %s\x1b[0m\n", entry->type);
+    string_nconcatf(out, 1000, "\x1b[36mType: %s\x1b[0m\n---------------\n", entry->type);
+
+    string* desc = string_new2(0);
+
+    for(int i = 0; i < strnlen(meta->description, 3000); i++) {
+        if(i != 0 && i % info.width == 0) {
+            string_concat_char(desc, '\n');
+        } else {
+            string_concat_char(desc, meta->description[i]);
+        }
+    }
+
+    string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));
+    string_del2(desc);
     // printSixel("/home/euro/Pictures/memes/audiophiles.png", sixel_out);
+    // string2_concat(out, sixel_out);
     return out;
 }
 
@@ -320,6 +373,12 @@ int main(const int argc, char* argv[])
 
     action_search(search);
 
+    aioid_t idint = *(aioid_t*)array_at(itemids, 0);
+    string* id = string_new2(0);
+    aio_id_to_string(idint, id);
+    char* line = string_mkcstr(id);
+    struct aio_entrym* entry = (struct aio_entrym*)hashmap_get(&metadata, line);
+
     struct selector_action_handlers actions = {
         .on_hover = NULL,
         .preview_gen = preview,
@@ -336,6 +395,7 @@ int main(const int argc, char* argv[])
     selector* s = selector_new2(actions, lines);
     selector_id_t row = selector_select(s);
     const char* z = selector_get_by_id(s, row);
+    printf("You selected: %s\n", z);
 
     close(errf->_fileno);
 }

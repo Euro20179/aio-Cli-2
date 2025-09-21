@@ -1,6 +1,7 @@
 #include "aio.h"
 #include <json-c/arraylist.h>
 #include <json-c/json_object.h>
+#include <json-c/json_tokener.h>
 #include <json-c/json_types.h>
 #include <json-c/linkhash.h>
 #include <stdbool.h>
@@ -187,9 +188,9 @@ int aio_entryi_parse(const char* json, struct aio_entryi* out) {
         return -1;
     }
 
-#define set(key, field) aio_entryi_get_key(data, key, &out->field)
+#define set(key, field) aio_entry_get_key(data, key, &out->field)
     set("ItemId", itemid);
-    set("ItemId", itemid);
+    set("Uid", uid);
     set("ArtStyle", art_style);
     set("En_Title", en_title);
     set("Native_Title", native_title);
@@ -201,10 +202,41 @@ int aio_entryi_parse(const char* json, struct aio_entryi* out) {
     set("Type", type);
     set("CopyOf", copyof);
     set("Library", library);
-    #undef set
+#undef set
+    return 0;
 }
 
-int aio_entryi_get_key(EntryI_json info, const char* key, void* out){
+int aio_entrym_parse(const char *json, struct aio_entrym *out) {
+    MetaInfo_json data = json_tokener_parse(json);
+    if(data == NULL) {
+        return -1;
+    }
+
+#define set(key, field) aio_entry_get_key(data, key, &out->field)
+    set("ItemId", itemid);
+    set("Title", title);
+    set("Native_Title", native_title);
+    // set("Rating", rating);
+    set("RatingMax", rating_max);
+    set("Description", description);
+    set("ReleaseYear", release_year);
+    set("Thumbnail", thumbnail);
+    set("MediaDependant", media_dependant);
+    set("Datapoints", datapoints);
+    set("Provider", provider);
+    set("ProviderID", provider_id);
+    set("Genres", genres);
+#undef set
+
+    json_object* temp = key(data, "Rating");
+    out->rating = json_object_get_double(temp);
+    temp = key(data, "RatingMax");
+    out->rating_max = json_object_get_double(temp);
+
+    return 0;
+}
+
+int aio_entry_get_key(EntryI_json info, const char* key, void* out){
     json_object* data = key(info, key);
     switch (json_object_get_type(data)) {
         case json_type_object:
@@ -243,3 +275,21 @@ void aio_id_to_string(const aioid_t id, string * out) {
 }
 
 #undef key
+
+struct aio_entrym* aio_entrym_new() {
+    struct aio_entrym* e = malloc(sizeof(struct aio_entrym));
+    e->media_dependant = "{}";
+    e->datapoints = "{}";
+    e->description = NULL;
+    e->genres = NULL;
+    e->native_title = NULL;
+    e->title = NULL;
+    e->provider = NULL;
+    e->provider_id = NULL;
+    e->thumbnail = NULL;
+    return e;
+}
+
+void aio_free(void* entry) {
+    free(entry);
+}

@@ -53,6 +53,7 @@ enum aio_entryformat : uint32_t {
 
 struct aio_entryi{
     aioid_t itemid;
+    aioid_t uid;
     const char* en_title;
     const char* native_title;
     const char* location;
@@ -63,7 +64,25 @@ struct aio_entryi{
     aioid_t copyof;
     aioid_t library;
     enum aio_entryformat format;
+    ///Formatted as a string concatinated list of \x1F<TAG>\x1F
+    ///eg: \x1Ftag1\x1F\x1Ftag2\x1F
     const char* collection;
+};
+
+struct aio_entrym {
+    aioid_t itemid;
+    const char* title;
+    const char* native_title;
+    double rating;
+    double rating_max;
+    const char* description;
+    int64_t release_year;
+    const char* thumbnail;
+    const char* media_dependant;
+    const char* datapoints;
+    const char* provider;
+    const char* provider_id;
+    const char* genres;
 };
 
 void aio_artstyle_to_string(const enum aio_artstyle, string* out);
@@ -71,8 +90,16 @@ void aio_artstyle_to_string(const enum aio_artstyle, string* out);
 //returns -1 if json is not parsable
 int aio_entryi_parse(const char* json, struct aio_entryi* out);
 
-int aio_entryi_get_key(EntryI_json info, const char* key, void* out);
+int aio_entry_get_key(EntryI_json info, const char* key, void* out);
+
+///returns -1 if json is not parsable
+int aio_entrym_parse(const char* json, struct aio_entrym* out);
 
 void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out);
 
 void aio_id_to_string(const aioid_t, string*);
+
+///Caller must call aio_free with the result
+struct aio_entrym* aio_entrym_new();
+
+void aio_free(void*);
