@@ -79,7 +79,6 @@ void print_item(void* item) {
     struct aio_entryi* a = item;
     string str;
     string_new(&str, 256);
-    printf("%zu\n", (a)->itemid);
     aio_entryi_to_human_str(a, &str);
     printf("%s\n", string_mkcstr(&str));
     string_del(&str);
