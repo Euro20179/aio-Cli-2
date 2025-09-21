@@ -184,9 +184,9 @@ void handle_action(string* action, size_t action_no, void* userdata) {
             char* s = string_mkcstr(uri);
             action_search(s);
 
-            string_del(uri);
+            string_del2(uri);
             llist_clear(&state->action_args);
-            string_del(search);
+            string_del2(search);
         }
     }
 }
