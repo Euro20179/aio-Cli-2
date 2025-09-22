@@ -1,3 +1,4 @@
+#include <fcntl.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -32,7 +33,8 @@ static hashmap metadata;
 static array* itemids;
 static bool items_allocated = false;
 
-void* get_by_id(aioid_t id, void* from_map) {
+void* get_by_id(aioid_t id, void* from_map)
+{
     string* idstr = string_new2(0);
     aio_id_to_string(id, idstr);
     char* line = string_mkcstr(idstr);
@@ -48,9 +50,15 @@ int sixel_write(char* data, int size, void* priv)
     return 0;
 }
 
-void printSixel(const char* path, string* sixelOut)
+int printSixel(const char* path, string* sixelOut)
 {
-    sixel_output_t* out;
+    int res = 0;
+
+    VipsImage* x = NULL, *conv = NULL, *flattened = NULL;
+
+    bool has_alpha = 0;
+
+    sixel_output_t* out = NULL;
     SIXELSTATUS status = sixel_output_new(&out, sixel_write, sixelOut, NULL);
     if (SIXEL_FAILED(status)) {
         goto error;
@@ -58,21 +66,19 @@ void printSixel(const char* path, string* sixelOut)
 
     VIPS_INIT("test");
 
-    VipsImage* x = NULL;
     if (!(x = vips_image_new_from_file(path, NULL))) {
+        string_concat(sixelOut, "could not load image\n", sizeof("could not load image\n"));
         goto error;
     }
 
-    VipsImage* conv = NULL;
     if (vips_colourspace(x, &conv, VIPS_INTERPRETATION_sRGB, NULL) == -1) {
+        string_concat(sixelOut, "could not convert colorspace\n", sizeof("could not convert colorspace\n"));
         goto error;
     };
 
-    bool has_alpha = 0;
-
-    VipsImage* flattened = NULL;
     if (vips_image_hasalpha(conv)) {
         if (vips_flatten(conv, &flattened, NULL) == -1) {
+            string_concat(sixelOut, "could not flatten\n", sizeof("could not flatten\n"));
             goto error;
         }
         has_alpha = 1;
@@ -83,6 +89,7 @@ void printSixel(const char* path, string* sixelOut)
     uint8_t* buf = NULL;
     size_t len;
     if (!(buf = vips_image_write_to_memory(flattened, &len))) {
+        string_concat(sixelOut, "coult not write to memory\n", sizeof("coult not write to memory\n"));
         goto error;
     }
 
@@ -99,18 +106,22 @@ void printSixel(const char* path, string* sixelOut)
     goto success;
 
 error:
-    fprintf(stderr, "%s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
+    fprintf(stderr, "ERROR: %s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
+    res = -1;
 
 success:
-    sixel_output_unref(out);
-    if(x != NULL)
+    if (out != NULL) {
+        sixel_output_unref(out);
+    }
+    if (x != NULL)
         g_object_unref(x);
-    if(conv != NULL)
+    if (conv != NULL)
         g_object_unref(conv);
     if (has_alpha) {
         // only free this if the image has alpha otherwise we get double free
         g_object_unref(flattened);
     }
+    return res;
     // sixel_encoder_unref(enc);
 }
 
@@ -379,22 +390,28 @@ string* preview(struct selector_preview_info info)
             string_del(&thumbnail);
         }
 
+        int f = open("./log", O_WRONLY | O_CREAT, 0644);
+        write(f, meta->thumbnail, strlen(meta->thumbnail));
+        close(f);
+
         if (stat(sixel_path, &st) != 0) {
             string sixel;
             string_new(&sixel, 1024 * 1024 * 10);
-            printSixel(image_path, &sixel);
-            string_nconcatf(out, sixel.len, "%s\n", string_mkcstr(&sixel));
-            FILE* f = fopen(sixel_path, "w");
-            write(f->_fileno, sixel.data, sixel.len);
-            fclose(f);
+            int res = printSixel(image_path, &sixel);
+            if (res == 0) {
+                string_nconcatf(out, sixel.len, "%s\n", string_mkcstr(&sixel));
+                int f = open(sixel_path, O_RDWR | O_CREAT, 0644);
+                write(f, sixel.data, sixel.len);
+                close(f);
+            }
             string_del(&sixel);
         } else {
-            FILE* f = fopen(sixel_path, "r");
+            int f = open(sixel_path, O_RDONLY);
             char buf[st.st_size + 1];
-            read(f->_fileno, buf, st.st_size);
+            read(f, buf, st.st_size);
             buf[st.st_size] = 0;
             string_nconcatf(out, st.st_size, "%s\n", buf);
-            fclose(f);
+            close(f);
         }
     }
 
@@ -423,7 +440,6 @@ int main(const int argc, char* argv[])
     }
 
     action_search(search);
-
 
     struct selector_action_handlers actions = {
         .on_hover = NULL,
