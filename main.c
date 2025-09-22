@@ -106,10 +106,11 @@ int printSixel(const char* path, string* sixelOut)
     goto success;
 
 error:
-    fprintf(stderr, "ERROR: %s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
+    fprintf(errf, "ERROR: %s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
     res = -1;
 
 success:
+    vips_shutdown();
     if (out != NULL) {
         sixel_output_unref(out);
     }
@@ -137,7 +138,7 @@ void create_entry_items(string* line, size_t count, void* userdata)
 
     struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
     if (aio_entryi_parse(buf, entry) == -1) {
-        fprintf(stderr, "%s\n", buf);
+        fprintf(errf, "%s\n", buf);
         return;
     }
 
@@ -161,7 +162,7 @@ void create_metadata_items(string* line, size_t count, void* userdata)
 
     struct aio_entrym* entry = aio_entrym_new();
     if (aio_entrym_parse(buf, entry) == -1) {
-        fprintf(stderr, "%s\n", buf);
+        fprintf(errf, "%s\n", buf);
         return;
     }
 
@@ -426,14 +427,14 @@ string* preview(struct selector_preview_info info)
 
 int main(const int argc, char* argv[])
 {
-    errf = fopen("./log", "w");
-
     if (argc > 1) {
         // this assumes the strings are stored next to each other in an array which i dont think is necessarily true
         size_t total_argv_len = (argv[argc - 1] + strlen(argv[argc - 1])) - argv[1];
         handle_argv_actions(&(argv[1]), total_argv_len);
         return 0;
     }
+
+    errf = fopen("./log", "w");
 
     char* search = NULL;
     if (argc > 1) {
