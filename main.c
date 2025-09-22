@@ -4,6 +4,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include <sys/stat.h>
+
 #include <json-c/arraylist.h>
 #include <json-c/json.h>
 #include <json-c/json_object.h>
@@ -42,19 +44,22 @@ void printSixel(const char* path, string* sixelOut)
     sixel_output_t* out;
     SIXELSTATUS status = sixel_output_new(&out, sixel_write, sixelOut, NULL);
     if (SIXEL_FAILED(status)) {
-        goto error;
+        sixel_output_unref(out);
+        return;
     }
 
     VIPS_INIT("test");
 
     VipsImage* x;
     if (!(x = vips_image_new_from_file(path, NULL))) {
-        vips_error_exit(NULL);
+        sixel_output_unref(out);
+        return;
     }
 
     VipsImage* conv;
     if (vips_colourspace(x, &conv, VIPS_INTERPRETATION_sRGB, NULL) == -1) {
-        vips_error_exit(NULL);
+        // vips_error_exit(NULL);
+        goto error;
     };
 
     bool has_alpha = 0;
@@ -62,7 +67,8 @@ void printSixel(const char* path, string* sixelOut)
     VipsImage* flattened;
     if (vips_image_hasalpha(conv)) {
         if (vips_flatten(conv, &flattened, NULL) == -1) {
-            vips_error_exit(NULL);
+            // vips_error_exit(NULL);
+            goto error;
         }
         has_alpha = 1;
     } else {
@@ -72,7 +78,8 @@ void printSixel(const char* path, string* sixelOut)
     uint8_t* buf;
     size_t len;
     if (!(buf = vips_image_write_to_memory(flattened, &len))) {
-        vips_error_exit(NULL);
+        // vips_error_exit(NULL);
+        goto error;
     }
 
     // int x, y, n;
@@ -98,7 +105,7 @@ success:
     g_object_unref(x);
     g_object_unref(conv);
     if (has_alpha) {
-        //only free this if the image has alpha otherwise we get double free
+        // only free this if the image has alpha otherwise we get double free
         g_object_unref(flattened);
     }
     // sixel_encoder_unref(enc);
@@ -128,9 +135,10 @@ void create_entry_items(string* line, size_t count, void* userdata)
     hashmap_set(&items, idbuf, entry);
 }
 
-void create_metadata_items(string* line, size_t count, void* userdata) {
+void create_metadata_items(string* line, size_t count, void* userdata)
+{
     size_t len = line->len;
-    if(len == 0) {
+    if (len == 0) {
         return;
     }
 
@@ -138,7 +146,7 @@ void create_metadata_items(string* line, size_t count, void* userdata) {
     string_to_cstr(line, buf);
 
     struct aio_entrym* entry = aio_entrym_new();
-    if(aio_entrym_parse(buf, entry) == -1) {
+    if (aio_entrym_parse(buf, entry) == -1) {
         fprintf(stderr, "%s\n", buf);
         return;
     }
@@ -318,19 +326,18 @@ string* preview(struct selector_preview_info info)
     aioid_t i = *(aioid_t*)array_at(itemids, id);
     string* idstr = string_new2(0);
     aio_id_to_string(i, idstr);
-    char* line = string_mkcstr(idstr);
+    char* idline = string_mkcstr(idstr);
 
-    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, line);
-    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(&metadata, line);
+    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, idline);
+    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(&metadata, idline);
 
-    string_del2(idstr);
     string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(itemids), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
-    if(entry->native_title[0] != 0) {
+    if (entry->native_title[0] != 0) {
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
     }
-    if(entry->collection[0] != 0) {
-        for(int i = 0; i < strnlen(entry->collection, 100); i++) {
-            if(entry->collection[i] == '\x1F') {
+    if (entry->collection[0] != 0) {
+        for (int i = 0; i < strnlen(entry->collection, 100); i++) {
+            if (entry->collection[i] == '\x1F') {
                 ((char*)entry->collection)[i] = ' ';
             }
         }
@@ -340,16 +347,57 @@ string* preview(struct selector_preview_info info)
 
     string* desc = string_new2(0);
 
-    for(int i = 0; i < strnlen(meta->description, 3000); i++) {
-        if(i != 0 && i % info.width == 0) {
+    for (int i = 0; i < strnlen(meta->description, 3000); i++) {
+        if (i != 0 && i % info.width == 0) {
             string_concat_char(desc, '\n');
         } else {
             string_concat_char(desc, meta->description[i]);
         }
     }
 
+    if (meta->thumbnail[0] != 0) {
+        char image_path[sizeof("./test/") + idstr->len + 1];
+        char sixel_path[sizeof("./test/") + idstr->len + 1 + sizeof(".sixel")];
+        snprintf(image_path, sizeof("./test/") + idstr->len + 1, "./test/%s", idline);
+        snprintf(sixel_path, sizeof("./test/") + idstr->len + 1 + sizeof(".sixel"), "./test/%s.sixel", idline);
+
+        struct stat st;
+        if (stat(image_path, &st) != 0) {
+            string thumbnail;
+            // reserve 10 megs to hopefully avoid massive reallocs
+            string_new(&thumbnail, 1024 * 1024 * 10);
+
+            char error[CURL_ERROR_SIZE];
+            mkreq(&thumbnail, (char*)meta->thumbnail, error);
+
+            FILE* f = fopen(image_path, "w");
+            write(f->_fileno, thumbnail.data, thumbnail.len);
+            fclose(f);
+            string_del(&thumbnail);
+        }
+
+        if (stat(sixel_path, &st) != 0) {
+            string sixel;
+            string_new(&sixel, 1024 * 1024 * 10);
+            printSixel(image_path, &sixel);
+            string_nconcatf(out, sixel.len, "%s\n", string_mkcstr(&sixel));
+            FILE* f = fopen(sixel_path, "w");
+            write(f->_fileno, sixel.data, sixel.len);
+            fclose(f);
+            string_del(&sixel);
+        } else {
+            FILE* f = fopen(sixel_path, "r");
+            char buf[st.st_size + 1];
+            read(f->_fileno, buf, st.st_size);
+            buf[st.st_size] = 0;
+            string_nconcatf(out, st.st_size, "%s\n", buf);
+            fclose(f);
+        }
+    }
+
     string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));
     string_del2(desc);
+    string_del2(idstr);
     // printSixel("/home/euro/Pictures/memes/audiophiles.png", sixel_out);
     // string2_concat(out, sixel_out);
     return out;
