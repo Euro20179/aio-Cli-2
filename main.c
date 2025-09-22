@@ -390,10 +390,6 @@ string* preview(struct selector_preview_info info)
             string_del(&thumbnail);
         }
 
-        int f = open("./log", O_WRONLY | O_CREAT, 0644);
-        write(f, meta->thumbnail, strlen(meta->thumbnail));
-        close(f);
-
         if (stat(sixel_path, &st) != 0) {
             string sixel;
             string_new(&sixel, 1024 * 1024 * 10);
