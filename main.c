@@ -44,30 +44,26 @@ void printSixel(const char* path, string* sixelOut)
     sixel_output_t* out;
     SIXELSTATUS status = sixel_output_new(&out, sixel_write, sixelOut, NULL);
     if (SIXEL_FAILED(status)) {
-        sixel_output_unref(out);
-        return;
+        goto error;
     }
 
     VIPS_INIT("test");
 
-    VipsImage* x;
+    VipsImage* x = NULL;
     if (!(x = vips_image_new_from_file(path, NULL))) {
-        sixel_output_unref(out);
-        return;
+        goto error;
     }
 
-    VipsImage* conv;
+    VipsImage* conv = NULL;
     if (vips_colourspace(x, &conv, VIPS_INTERPRETATION_sRGB, NULL) == -1) {
-        // vips_error_exit(NULL);
         goto error;
     };
 
     bool has_alpha = 0;
 
-    VipsImage* flattened;
+    VipsImage* flattened = NULL;
     if (vips_image_hasalpha(conv)) {
         if (vips_flatten(conv, &flattened, NULL) == -1) {
-            // vips_error_exit(NULL);
             goto error;
         }
         has_alpha = 1;
@@ -75,16 +71,12 @@ void printSixel(const char* path, string* sixelOut)
         flattened = conv;
     }
 
-    uint8_t* buf;
+    uint8_t* buf = NULL;
     size_t len;
     if (!(buf = vips_image_write_to_memory(flattened, &len))) {
-        // vips_error_exit(NULL);
         goto error;
     }
 
-    // int x, y, n;
-    // uint8_t* data = stbi_load(path, &x, &y, &n, 0);
-    //
     int height = vips_image_get_height(flattened);
     int width = vips_image_get_width(flattened);
     sixel_dither_t* dither;
@@ -102,8 +94,10 @@ error:
 
 success:
     sixel_output_unref(out);
-    g_object_unref(x);
-    g_object_unref(conv);
+    if(x != NULL)
+        g_object_unref(x);
+    if(conv != NULL)
+        g_object_unref(conv);
     if (has_alpha) {
         // only free this if the image has alpha otherwise we get double free
         g_object_unref(flattened);
@@ -336,7 +330,7 @@ string* preview(struct selector_preview_info info)
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
     }
     if (entry->collection[0] != 0) {
-        for (int i = 0; i < strnlen(entry->collection, 100); i++) {
+        for (int i = 0; i < strlen(entry->collection); i++) {
             if (entry->collection[i] == '\x1F') {
                 ((char*)entry->collection)[i] = ' ';
             }
@@ -347,7 +341,7 @@ string* preview(struct selector_preview_info info)
 
     string* desc = string_new2(0);
 
-    for (int i = 0; i < strnlen(meta->description, 3000); i++) {
+    for (int i = 0; i < strlen(meta->description); i++) {
         if (i != 0 && i % info.width == 0) {
             string_concat_char(desc, '\n');
         } else {
