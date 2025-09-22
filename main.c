@@ -32,6 +32,15 @@ static hashmap metadata;
 static array* itemids;
 static bool items_allocated = false;
 
+void* get_by_id(aioid_t id, void* from_map) {
+    string* idstr = string_new2(0);
+    aio_id_to_string(id, idstr);
+    char* line = string_mkcstr(idstr);
+    void* entry = hashmap_get(from_map, line);
+    string_del2(idstr);
+    return entry;
+}
+
 int sixel_write(char* data, int size, void* priv)
 {
     string* out = priv;
@@ -415,11 +424,6 @@ int main(const int argc, char* argv[])
 
     action_search(search);
 
-    aioid_t idint = *(aioid_t*)array_at(itemids, 0);
-    string* id = string_new2(0);
-    aio_id_to_string(idint, id);
-    char* line = string_mkcstr(id);
-    struct aio_entrym* entry = (struct aio_entrym*)hashmap_get(&metadata, line);
 
     struct selector_action_handlers actions = {
         .on_hover = NULL,
@@ -428,12 +432,10 @@ int main(const int argc, char* argv[])
     array* lines = array_new2(0, sizeof(const char**));
     for (size_t i = 0; i < array_len(itemids); i++) {
         aioid_t idint = *(aioid_t*)array_at(itemids, i);
-        string* id = string_new2(0);
-        aio_id_to_string(idint, id);
-        char* line = string_mkcstr(id);
-        struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, line);
+        struct aio_entryi* entry = get_by_id(idint, &items);
         array_append(lines, &entry->en_title);
     }
+
     selector* s = selector_new2(actions, lines);
     selector_id_t row = selector_select(s);
     const char* z = selector_get_by_id(s, row);
