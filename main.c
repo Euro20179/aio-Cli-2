@@ -54,7 +54,7 @@ int printSixel(const char* path, string* sixelOut)
 {
     int res = 0;
 
-    VipsImage* x = NULL, *conv = NULL, *flattened = NULL;
+    VipsImage *x = NULL, *conv = NULL, *flattened = NULL;
 
     bool has_alpha = 0;
 
@@ -384,9 +384,9 @@ string* preview(struct selector_preview_info info)
             char error[CURL_ERROR_SIZE];
             mkreq(&thumbnail, (char*)meta->thumbnail, error);
 
-            FILE* f = fopen(image_path, "w");
-            write(f->_fileno, thumbnail.data, thumbnail.len);
-            fclose(f);
+            int f = open(image_path, O_CREAT | O_RDWR, 0644);
+            write(f, thumbnail.data, thumbnail.len);
+            close(f);
             string_del(&thumbnail);
         }
 
@@ -403,11 +403,16 @@ string* preview(struct selector_preview_info info)
             string_del(&sixel);
         } else {
             int f = open(sixel_path, O_RDONLY);
-            char buf[st.st_size + 1];
-            read(f, buf, st.st_size);
-            buf[st.st_size] = 0;
-            string_nconcatf(out, st.st_size, "%s\n", buf);
-            close(f);
+            char* buf = malloc(st.st_size + 1);
+            if (buf == NULL) {
+                close(f);
+            } else {
+                read(f, buf, st.st_size);
+                buf[st.st_size] = 0;
+                string_nconcatf(out, st.st_size, "%s\n", buf);
+                free(buf);
+                close(f);
+            }
         }
     }
 
@@ -453,5 +458,5 @@ int main(const int argc, char* argv[])
     const char* z = selector_get_by_id(s, row);
     printf("You selected: %s\n", z);
 
-    close(errf->_fileno);
+    fclose(errf);
 }
