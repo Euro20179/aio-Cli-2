@@ -447,8 +447,6 @@ string* preview(struct selector_preview_info info)
     string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));
     string_del2(desc);
     string_del2(idstr);
-    // printSixel("/home/euro/Pictures/memes/audiophiles.png", sixel_out);
-    // string2_concat(out, sixel_out);
     return out;
 }
 
@@ -457,9 +455,11 @@ int main(const int argc, char* argv[])
     VIPS_INIT(argv[0]);
 
     if (argc > 1) {
-        // this assumes the strings are stored next to each other in an array which i dont think is necessarily true
-        size_t total_argv_len = (argv[argc - 1] + strlen(argv[argc - 1])) - argv[1];
-        handle_argv_actions(&(argv[1]), total_argv_len);
+        string* raw_actions_char_buf = string_new2(0);
+        for(int i = 1; i < argc; i++) {
+            string_concat(raw_actions_char_buf, argv[i], strlen(argv[i]) + 1);
+        }
+        handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
         return 0;
     }
 
