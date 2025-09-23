@@ -6,6 +6,7 @@
 #include <unistd.h>
 
 #include <sys/stat.h>
+#include <sys/wait.h>
 
 #include <json-c/arraylist.h>
 #include <json-c/json.h>
@@ -26,6 +27,11 @@
 #include "url.h"
 
 #include "selector/selector.h"
+
+#define log(...)          \
+    fprintf(errf, __VA_ARGS__); \
+    fflush(errf)
+
 
 // initizlied in main
 static hashmap items;
@@ -55,6 +61,7 @@ int printSixel(const char* path, string* sixelOut)
     int res = 0;
 
     VipsImage *x = NULL, *conv = NULL, *flattened = NULL;
+    const char* vipserr;
 
     bool has_alpha = 0;
 
@@ -63,8 +70,6 @@ int printSixel(const char* path, string* sixelOut)
     if (SIXEL_FAILED(status)) {
         goto error;
     }
-
-    VIPS_INIT("test");
 
     if (!(x = vips_image_new_from_file(path, NULL))) {
         string_concat(sixelOut, "could not load image\n", sizeof("could not load image\n"));
@@ -81,6 +86,7 @@ int printSixel(const char* path, string* sixelOut)
             string_concat(sixelOut, "could not flatten\n", sizeof("could not flatten\n"));
             goto error;
         }
+
         has_alpha = 1;
     } else {
         flattened = conv;
@@ -95,9 +101,19 @@ int printSixel(const char* path, string* sixelOut)
 
     int height = vips_image_get_height(flattened);
     int width = vips_image_get_width(flattened);
+
     sixel_dither_t* dither;
-    sixel_dither_new(&dither, -1, NULL);
-    sixel_dither_initialize(dither, buf, width, height, SIXEL_PIXELFORMAT_RGB888, SIXEL_LARGE_LUM, SIXEL_REP_CENTER_BOX, SIXEL_QUALITY_HIGH);
+
+    status = sixel_dither_new(&dither, -1, NULL);
+    if (SIXEL_FAILED(status)) {
+        goto error;
+    }
+
+    status = sixel_dither_initialize(dither, buf, width, height, SIXEL_PIXELFORMAT_RGB888, SIXEL_LARGE_LUM, SIXEL_REP_CENTER_BOX, SIXEL_QUALITY_HIGH);
+    if (SIXEL_FAILED(status)) {
+        goto error;
+    }
+
     status = sixel_encode(buf, width, height, PIXELFORMAT_RGB888, dither, out);
     if (SIXEL_FAILED(status)) {
         goto error;
@@ -106,18 +122,22 @@ int printSixel(const char* path, string* sixelOut)
     goto success;
 
 error:
-    fprintf(errf, "ERROR: %s\n%s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message());
+    vipserr = vips_error_buffer();
+    fprintf(errf, "ERROR: %s\n%s\nvips error: %s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message(), vipserr);
+    fflush(errf);
+    vips_error_clear();
     res = -1;
 
 success:
-    vips_shutdown();
     if (out != NULL) {
         sixel_output_unref(out);
     }
-    if (x != NULL)
+    if (x != NULL) {
         g_object_unref(x);
-    if (conv != NULL)
+    }
+    if (conv != NULL) {
         g_object_unref(conv);
+    }
     if (has_alpha) {
         // only free this if the image has alpha otherwise we get double free
         g_object_unref(flattened);
@@ -138,7 +158,6 @@ void create_entry_items(string* line, size_t count, void* userdata)
 
     struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
     if (aio_entryi_parse(buf, entry) == -1) {
-        fprintf(errf, "%s\n", buf);
         return;
     }
 
@@ -162,7 +181,6 @@ void create_metadata_items(string* line, size_t count, void* userdata)
 
     struct aio_entrym* entry = aio_entrym_new();
     if (aio_entrym_parse(buf, entry) == -1) {
-        fprintf(errf, "%s\n", buf);
         return;
     }
 
@@ -346,6 +364,10 @@ string* preview(struct selector_preview_info info)
     struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, idline);
     struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(&metadata, idline);
 
+    if (entry == NULL || meta == NULL) {
+        return out;
+    }
+
     string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(itemids), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
     if (entry->native_title[0] != 0) {
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
@@ -383,25 +405,29 @@ string* preview(struct selector_preview_info info)
             string_new(&thumbnail, 1024 * 1024 * 10);
 
             char error[CURL_ERROR_SIZE];
-            mkreq(&thumbnail, (char*)meta->thumbnail, error);
-
-            int f = open(image_path, O_CREAT | O_RDWR, 0644);
-            write(f, thumbnail.data, thumbnail.len);
-            close(f);
+            CURLcode res = mkreq(&thumbnail, (char*)meta->thumbnail, error);
+            if (res != 0) {
+                fprintf(errf, "%s\n", error);
+            } else if (string_len(&thumbnail) != 0) {
+                int f = open(image_path, O_CREAT | O_RDWR, 0644);
+                write(f, thumbnail.data, thumbnail.len);
+                close(f);
+            }
             string_del(&thumbnail);
         }
 
         if (stat(sixel_path, &st) != 0) {
-            string sixel;
-            string_new(&sixel, 1024 * 1024 * 10);
-            int res = printSixel(image_path, &sixel);
+            string* sixel = string_new2(1024 * 1024 * 10);
+            fprintf(errf, "Doing: %s\n", entry->en_title);
+            fflush(errf);
+            int res = printSixel(image_path, sixel);
             if (res == 0) {
-                string_nconcatf(out, sixel.len, "%s\n", string_mkcstr(&sixel));
+                string_nconcatf(out, string_len(sixel), "%s\n", string_mkcstr(sixel));
                 int f = open(sixel_path, O_RDWR | O_CREAT, 0644);
-                write(f, sixel.data, sixel.len);
+                write(f, sixel->data, sixel->len);
                 close(f);
             }
-            string_del(&sixel);
+            string_del2(sixel);
         } else {
             int f = open(sixel_path, O_RDONLY);
             char* buf = malloc(st.st_size + 1);
@@ -427,6 +453,8 @@ string* preview(struct selector_preview_info info)
 
 int main(const int argc, char* argv[])
 {
+    VIPS_INIT(argv[0]);
+
     if (argc > 1) {
         // this assumes the strings are stored next to each other in an array which i dont think is necessarily true
         size_t total_argv_len = (argv[argc - 1] + strlen(argv[argc - 1])) - argv[1];
@@ -451,6 +479,8 @@ int main(const int argc, char* argv[])
     for (size_t i = 0; i < array_len(itemids); i++) {
         aioid_t idint = *(aioid_t*)array_at(itemids, i);
         struct aio_entryi* entry = get_by_id(idint, &items);
+        if (entry == NULL)
+            continue;
         array_append(lines, &entry->en_title);
     }
 
