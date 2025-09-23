@@ -24,6 +24,7 @@
 #include "inc/hashmap.h"
 #include "inc/llist.h"
 #include "inc/string.h"
+#include "inc/mem.h"
 #include "url.h"
 
 #include "selector/selector.h"
@@ -166,7 +167,10 @@ void create_entry_items(string* line, size_t count, void* userdata)
     snprintf(idbuf, 32, "%ld", entry->itemid);
 
     array_append(itemids, &entry->itemid);
-    hashmap_set(&items, idbuf, entry);
+
+    string* key = string_new2(32);
+    string_set(key, idbuf, 32);
+    hashmap_set_safe(&items, move(key), entry);
 }
 
 void create_metadata_items(string* line, size_t count, void* userdata)
@@ -352,10 +356,6 @@ string* preview(struct selector_preview_info info)
 {
     selector_id_t id = info.id;
     string* out = string_new2(100);
-    // string_set(out, "very\ncool", 9);
-    // string* sixel_out = string_new2(0);
-    // CURL* c = curl_easy_init();
-    // string* image = string_new2(0);
     aioid_t i = *(aioid_t*)array_at(itemids, id);
     string* idstr = string_new2(0);
     aio_id_to_string(i, idstr);
@@ -472,6 +472,11 @@ int main(const int argc, char* argv[])
 
     action_search(search);
 
+    if(hashmap_item_count(&items) == 0) {
+        printf("No results\n");
+        return 1;
+    }
+
     struct selector_action_handlers actions = {
         .on_hover = NULL,
         .preview_gen = preview,
@@ -488,6 +493,24 @@ int main(const int argc, char* argv[])
     selector* s = selector_new2(actions, lines);
     selector_id_t row = selector_select(s);
     const char* z = selector_get_by_id(s, row);
+    selector_del2(s);
+
+    // const char* action_list[] = {
+    //     "finish",
+    //     "start",
+    // };
+    //
+    // array* action_arr = array_new2(2, sizeof(const char**));
+    // for(int i = 0; i < 2; i++) {
+    //     array_append(action_arr, &action_list[i]);
+    // }
+
+    // actions.preview_gen = NULL;
+    // s = selector_new2(actions, action_arr);
+    // selector_select(s);
+    // selector_del2(s);
+
+
     printf("You selected: %s\n", z);
 
     fclose(errf);
