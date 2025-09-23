@@ -251,7 +251,17 @@ void user_search(const char* search)
             bytes_read -= 1;
         }
         buf[bytes_read] = 0;
-        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", buf);
+
+        string* search = string_new2(bytes_read);
+        string_set(search, buf, bytes_read);
+        string* uri = string_new2(bytes_read * 3);
+        string_uri_encode(search, uri);
+        char* s = string_mkcstr(uri);
+
+        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", s);
+
+        string_del2(search);
+        string_del2(uri);
     } else {
         snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", search);
     }
@@ -454,6 +464,8 @@ int main(const int argc, char* argv[])
 {
     VIPS_INIT(argv[0]);
 
+    errf = fopen("./log", "w");
+
     if (argc > 1) {
         string* raw_actions_char_buf = string_new2(0);
         for(int i = 1; i < argc; i++) {
@@ -462,8 +474,6 @@ int main(const int argc, char* argv[])
         handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
         return 0;
     }
-
-    errf = fopen("./log", "w");
 
     char* search = NULL;
     if (argc > 1) {
