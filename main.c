@@ -418,8 +418,9 @@ string* preview(struct selector_preview_info info)
 
         if (stat(sixel_path, &st) != 0) {
             string* sixel = string_new2(1024 * 1024 * 10);
-            fprintf(errf, "Doing: %s\n", entry->en_title);
-            fflush(errf);
+
+            log("Creating sixel for %s (%ld)\n", entry->en_title, entry->itemid);
+
             int res = printSixel(image_path, sixel);
             if (res == 0) {
                 string_nconcatf(out, string_len(sixel), "%s\n", string_mkcstr(sixel));
