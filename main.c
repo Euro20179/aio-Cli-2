@@ -35,9 +35,6 @@
 
 
 // initizlied in main
-static hashmap items;
-static hashmap metadata;
-static array* itemids;
 static bool items_allocated = false;
 
 void* get_by_id(aioid_t id, void* from_map)
@@ -147,54 +144,6 @@ success:
     // sixel_encoder_unref(enc);
 }
 
-void create_entry_items(string* line, size_t count, void* userdata)
-{
-    size_t len = line->len;
-    if (len == 0) {
-        return;
-    }
-
-    char buf[line->len + 1];
-    string_to_cstr(line, buf);
-
-    struct aio_entryi* entry = malloc(sizeof(struct aio_entryi));
-    if (aio_entryi_parse(buf, entry) == -1) {
-        return;
-    }
-
-    char idbuf[32];
-    idbuf[0] = 0;
-    snprintf(idbuf, 32, "%ld", entry->itemid);
-
-    array_append(itemids, &entry->itemid);
-
-    string* key = string_new2(32);
-    string_set(key, idbuf, 32);
-    hashmap_set_safe(&items, move(key), entry);
-}
-
-void create_metadata_items(string* line, size_t count, void* userdata)
-{
-    size_t len = line->len;
-    if (len == 0) {
-        return;
-    }
-
-    string_to_cstr_buf_create(buf, (*line));
-    string_to_cstr(line, buf);
-
-    struct aio_entrym* entry = aio_entrym_new();
-    if (aio_entrym_parse(buf, entry) == -1) {
-        return;
-    }
-
-    char idbuf[32];
-    idbuf[0] = 0;
-    snprintf(idbuf, 32, "%ld", entry->itemid);
-
-    hashmap_set(&metadata, idbuf, entry);
-}
-
 int add(int a, int b)
 {
     return a + b;
@@ -212,7 +161,7 @@ void print_item(void* item)
 
 void user_print_all()
 {
-    hashmap_foreach(&items, print_item);
+    hashmap_foreach(aio_get_entryi(), print_item);
 }
 
 void del_item(void* item)
@@ -222,25 +171,6 @@ void del_item(void* item)
 
 void user_search(const char* search)
 {
-    string out;
-    string_new(&out, 0);
-
-    if (!items_allocated) {
-        hashmap_new(&items);
-        hashmap_new(&metadata);
-        itemids = array_new2(0, sizeof(aioid_t));
-        items_allocated = true;
-    } else {
-        hashmap_del_each(&items, del_item);
-        hashmap_del_each(&metadata, del_item);
-        hashmap_new(&metadata);
-        hashmap_new(&items);
-        array_del2(itemids);
-        itemids = array_new2(0, sizeof(aioid_t));
-    }
-
-    char pathbuf[48 + 32];
-
     if (search == 0) {
         char buf[48];
         fprintf(stderr, "\x1b[1mSearch > \x1b[0m");
@@ -254,37 +184,18 @@ void user_search(const char* search)
 
         string* search = string_new2(bytes_read);
         string_set(search, buf, bytes_read);
-        string* uri = string_new2(bytes_read * 3);
-        string_uri_encode(search, uri);
-        char* s = string_mkcstr(uri);
 
-        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", s);
+        aio_search(search);
 
         string_del2(search);
-        string_del2(uri);
     } else {
-        snprintf(pathbuf, 48 + 32, "/api/v1/query-v3?uid=1&search=%s", search);
+        string* s = string_new2(strlen(search));
+        string_set(s, search, strlen(search));
+        aio_search(s);
+        string_del2(s);
     }
 
-    char buf[CURL_ERROR_SIZE];
-
-    CURLcode res = mkapireq(&out, pathbuf, buf);
-    if (res != 0) {
-        fprintf(errf, "%s\n", buf);
-    }
-
-    string_split(&out, '\n', NULL, create_entry_items);
-
-    string_del(&out);
-
-    const char* metadataPath = "/api/v1/metadata/list-entries?uid=1";
-    string_new(&out, 0);
-    res = mkapireq(&out, metadataPath, buf);
-    if (res != 0) {
-        fprintf(errf, "%s\n", buf);
-    }
-    string_split(&out, '\n', NULL, create_metadata_items);
-    string_del(&out);
+    aio_load_metadata();
 }
 
 void action_search(char* search)
@@ -366,19 +277,19 @@ string* preview(struct selector_preview_info info)
 {
     selector_id_t id = info.id;
     string* out = string_new2(100);
-    aioid_t i = *(aioid_t*)array_at(itemids, id);
+    aioid_t i = *(aioid_t*)array_at(aio_get_itemids(), id);
     string* idstr = string_new2(0);
     aio_id_to_string(i, idstr);
     char* idline = string_mkcstr(idstr);
 
-    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(&items, idline);
-    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(&metadata, idline);
+    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(aio_get_entryi(), idline);
+    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(aio_get_entrym(), idline);
 
     if (entry == NULL || meta == NULL) {
         return out;
     }
 
-    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(itemids), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
+    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(aio_get_itemids()), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
     if (entry->native_title[0] != 0) {
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
     }
@@ -464,6 +375,8 @@ int main(const int argc, char* argv[])
 {
     VIPS_INIT(argv[0]);
 
+    aio_init();
+
     errf = fopen("./log", "w");
 
     if (argc > 1) {
@@ -482,7 +395,9 @@ int main(const int argc, char* argv[])
 
     action_search(search);
 
-    if(hashmap_item_count(&items) == 0) {
+    hashmap* info = aio_get_entryi();
+
+    if(hashmap_item_count(aio_get_entryi()) == 0) {
         printf("No results\n");
         return 1;
     }
@@ -492,9 +407,9 @@ int main(const int argc, char* argv[])
         .preview_gen = preview,
     };
     array* lines = array_new2(0, sizeof(const char**));
-    for (size_t i = 0; i < array_len(itemids); i++) {
-        aioid_t idint = *(aioid_t*)array_at(itemids, i);
-        struct aio_entryi* entry = get_by_id(idint, &items);
+    for (size_t i = 0; i < array_len(aio_get_itemids()); i++) {
+        aioid_t idint = *(aioid_t*)array_at(aio_get_itemids(), i);
+        struct aio_entryi* entry = get_by_id(idint, aio_get_entryi());
         if (entry == NULL)
             continue;
         array_append(lines, &entry->en_title);

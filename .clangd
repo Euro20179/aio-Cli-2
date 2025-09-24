@@ -1,6 +1,6 @@
 CompileFlags:
   Add: 
-    - "-std=c11"
+    - "-std=c99"
     - "-xc"
     - "-I/usr/include/glib-2.0"
     - "-I/usr/lib/glib-2.0/include"
