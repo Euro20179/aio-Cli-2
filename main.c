@@ -37,16 +37,6 @@
 // initizlied in main
 static bool items_allocated = false;
 
-void* get_by_id(aioid_t id, void* from_map)
-{
-    string* idstr = string_new2(0);
-    aio_id_to_string(id, idstr);
-    char* line = string_mkcstr(idstr);
-    void* entry = hashmap_get(from_map, line);
-    string_del2(idstr);
-    return entry;
-}
-
 int sixel_write(char* data, int size, void* priv)
 {
     string* out = priv;
@@ -409,7 +399,7 @@ int main(const int argc, char* argv[])
     array* lines = array_new2(0, sizeof(const char**));
     for (size_t i = 0; i < array_len(aio_get_itemids()); i++) {
         aioid_t idint = *(aioid_t*)array_at(aio_get_itemids(), i);
-        struct aio_entryi* entry = get_by_id(idint, aio_get_entryi());
+        struct aio_entryi* entry = aio_get_by_id(idint, aio_get_entryi());
         if (entry == NULL)
             continue;
         array_append(lines, &entry->en_title);

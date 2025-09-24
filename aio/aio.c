@@ -495,3 +495,12 @@ CURLcode aio_load_metadata() {
 
     return 0;
 }
+
+void* aio_get_by_id(aioid_t id, void* from_map) {
+    string* idstr = string_new2(32);
+    aio_id_to_string(id, idstr);
+    char* line = string_mkcstr(idstr);
+    void* entry = hashmap_get(from_map, line);
+    string_del2(idstr);
+    return entry;
+}

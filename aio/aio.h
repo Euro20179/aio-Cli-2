@@ -200,11 +200,11 @@ array* aio_get_itemids();
 // api functions {{{
 
 ///clears all loaded items and makes a new search
-///loads all resulting INFO.
+///LOADS: all resulting INFO.
 ///(does not load meta, events, or user)
 CURLcode aio_search(string* search);
 
-///loads metadata for all loaded info entries
+///LOADS metadata for all loaded info entries
 CURLcode aio_load_metadata();
 
 // }}}
@@ -215,4 +215,8 @@ void aio_init();
 void aio_shutdown();
 
 void aio_id_to_string(const aioid_t, string*);
+
+///gets an entry by id
+///from_map can be the resulting hashmap from aio_get_entryi() or aio_get_entrym()
+void* aio_get_by_id(aioid_t id, void* from_map);
 // }}}
