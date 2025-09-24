@@ -24,7 +24,6 @@
 #include "inc/hashmap.h"
 #include "inc/llist.h"
 #include "inc/string.h"
-#include "inc/mem.h"
 #include "url.h"
 
 #include "selector/selector.h"
