@@ -19,54 +19,54 @@
 #include <sixel.h>
 #include <vips/vips.h>
 
-#include "globals.h"
 #include "aio/aio.h"
 #include "c-stdlib/hashmap.h"
 #include "c-stdlib/llist.h"
 #include "c-stdlib/string.h"
+#include "globals.h"
 
 #include "selector.h/selector.h"
 
-#define log(...)          \
-    fprintf(errf, __VA_ARGS__); \
+#define log(...)                                                               \
+    fprintf(errf, __VA_ARGS__);                                                \
     fflush(errf)
 
-
-int sixel_write(char* data, int size, void* priv)
-{
-    string* out = priv;
+int sixel_write(char *data, int size, void *priv) {
+    string *out = priv;
     string_concat(out, data, size);
     return 0;
 }
 
-int printSixel(const char* path, string* sixelOut)
-{
+int printSixel(const char *path, string *sixelOut) {
     int res = 0;
 
     VipsImage *x = NULL, *conv = NULL, *flattened = NULL;
-    const char* vipserr;
+    const char *vipserr;
 
     bool has_alpha = 0;
 
-    sixel_output_t* out = NULL;
+    sixel_output_t *out = NULL;
     SIXELSTATUS status = sixel_output_new(&out, sixel_write, sixelOut, NULL);
     if (SIXEL_FAILED(status)) {
         goto error;
     }
 
     if (!(x = vips_image_new_from_file(path, NULL))) {
-        string_concat(sixelOut, "could not load image\n", sizeof("could not load image\n"));
+        string_concat(sixelOut, "could not load image\n",
+                      sizeof("could not load image\n"));
         goto error;
     }
 
     if (vips_colourspace(x, &conv, VIPS_INTERPRETATION_sRGB, NULL) == -1) {
-        string_concat(sixelOut, "could not convert colorspace\n", sizeof("could not convert colorspace\n"));
+        string_concat(sixelOut, "could not convert colorspace\n",
+                      sizeof("could not convert colorspace\n"));
         goto error;
     };
 
     if (vips_image_hasalpha(conv)) {
         if (vips_flatten(conv, &flattened, NULL) == -1) {
-            string_concat(sixelOut, "could not flatten\n", sizeof("could not flatten\n"));
+            string_concat(sixelOut, "could not flatten\n",
+                          sizeof("could not flatten\n"));
             goto error;
         }
 
@@ -75,24 +75,27 @@ int printSixel(const char* path, string* sixelOut)
         flattened = conv;
     }
 
-    uint8_t* buf = NULL;
+    uint8_t *buf = NULL;
     size_t len;
     if (!(buf = vips_image_write_to_memory(flattened, &len))) {
-        string_concat(sixelOut, "coult not write to memory\n", sizeof("coult not write to memory\n"));
+        string_concat(sixelOut, "coult not write to memory\n",
+                      sizeof("coult not write to memory\n"));
         goto error;
     }
 
     int height = vips_image_get_height(flattened);
     int width = vips_image_get_width(flattened);
 
-    sixel_dither_t* dither;
+    sixel_dither_t *dither;
 
     status = sixel_dither_new(&dither, -1, NULL);
     if (SIXEL_FAILED(status)) {
         goto error;
     }
 
-    status = sixel_dither_initialize(dither, buf, width, height, SIXEL_PIXELFORMAT_RGB888, SIXEL_LARGE_LUM, SIXEL_REP_CENTER_BOX, SIXEL_QUALITY_HIGH);
+    status = sixel_dither_initialize(dither, buf, width, height,
+                                     SIXEL_PIXELFORMAT_RGB888, SIXEL_LARGE_LUM,
+                                     SIXEL_REP_CENTER_BOX, SIXEL_QUALITY_HIGH);
     if (SIXEL_FAILED(status)) {
         goto error;
     }
@@ -106,7 +109,9 @@ int printSixel(const char* path, string* sixelOut)
 
 error:
     vipserr = vips_error_buffer();
-    fprintf(errf, "ERROR: %s\n%s\nvips error: %s\n", sixel_helper_format_error(status), sixel_helper_get_additional_message(), vipserr);
+    fprintf(errf, "ERROR: %s\n%s\nvips error: %s\n",
+            sixel_helper_format_error(status),
+            sixel_helper_get_additional_message(), vipserr);
     fflush(errf);
     vips_error_clear();
     res = -1;
@@ -129,14 +134,10 @@ success:
     // sixel_encoder_unref(enc);
 }
 
-int add(int a, int b)
-{
-    return a + b;
-}
+int add(int a, int b) { return a + b; }
 
-void print_item(void* item)
-{
-    struct aio_entryi* a = item;
+void print_item(void *item) {
+    struct aio_entryi *a = item;
     string str;
     string_new(&str, 256);
     aio_entryi_to_human_str(a, &str);
@@ -144,18 +145,11 @@ void print_item(void* item)
     string_del(&str);
 }
 
-void user_print_all()
-{
-    hashmap_foreach(aio_get_entryi(), print_item);
-}
+void user_print_all() { hashmap_foreach(aio_get_entryi(), print_item); }
 
-void del_item(void* item)
-{
-    free(item);
-}
+void del_item(void *item) { free(item); }
 
-void user_search(const char* search)
-{
+void user_search(const char *search) {
     if (search == 0) {
         char buf[48];
         fprintf(stderr, "\x1b[1mSearch > \x1b[0m");
@@ -167,14 +161,14 @@ void user_search(const char* search)
         }
         buf[bytes_read] = 0;
 
-        string* search = string_new2(bytes_read);
+        string *search = string_new2(bytes_read);
         string_set(search, buf, bytes_read);
 
         aio_search(search);
 
         string_del2(search);
     } else {
-        string* s = string_new2(strlen(search));
+        string *s = string_new2(strlen(search));
         string_set(s, search, strlen(search));
         aio_search(s);
         string_del2(s);
@@ -183,26 +177,23 @@ void user_search(const char* search)
     aio_load_metadata();
 }
 
-void action_search(char* search)
-{
-    user_search(search);
-}
+void action_search(char *search) { user_search(search); }
 
 struct argv_actions_state {
     size_t arg_count;
     llist action_args;
     size_t waiting_on_n_more_args;
 
-    const char* action;
+    const char *action;
 };
 
-void handle_action(string* action, size_t action_no, void* userdata)
-{
-    char* act = string_mkcstr(action);
+void handle_action(string *action, size_t action_no, void *userdata) {
+    char *act = string_mkcstr(action);
 
-    struct argv_actions_state* state = userdata;
+    struct argv_actions_state *state = userdata;
 
-    // keeps track of whether or not we got the final arg that we were waiting for
+    // keeps track of whether or not we got the final arg that we were waiting
+    // for
     bool just_hit_0 = false;
 
     if (state->waiting_on_n_more_args > 0) {
@@ -213,7 +204,7 @@ void handle_action(string* action, size_t action_no, void* userdata)
 
         state->arg_count++;
 
-        string* action_cpy = string_new2(action->len);
+        string *action_cpy = string_new2(action->len);
         string_cpy(action_cpy, action);
 
         llist_append(&state->action_args, action_cpy);
@@ -226,12 +217,12 @@ void handle_action(string* action, size_t action_no, void* userdata)
 
     if (just_hit_0) {
         if (state->action[0] == 's') {
-            string* search = llist_at(&state->action_args, 0);
-            string* uri = string_new2(string_len(search));
+            string *search = llist_at(&state->action_args, 0);
+            string *uri = string_new2(string_len(search));
 
             string_uri_encode(search, uri);
 
-            char* s = string_mkcstr(uri);
+            char *s = string_mkcstr(uri);
             action_search(s);
 
             string_del2(uri);
@@ -241,8 +232,7 @@ void handle_action(string* action, size_t action_no, void* userdata)
     }
 }
 
-void handle_argv_actions(char* raw_actions[], size_t total_len)
-{
+void handle_argv_actions(char *raw_actions[], size_t total_len) {
     string actions;
     string_new(&actions, total_len);
     string_set(&actions, raw_actions[0], total_len);
@@ -258,41 +248,49 @@ void handle_argv_actions(char* raw_actions[], size_t total_len)
     string_del(&actions);
 }
 
-string* preview(struct selector_preview_info info)
-{
+string *preview(struct selector_preview_info info) {
     selector_id_t id = info.id;
-    string* out = string_new2(100);
-    aioid_t i = *(aioid_t*)array_at(aio_get_itemids(), id);
-    string* idstr = string_new2(0);
+    string *out = string_new2(100);
+    aioid_t i = *(aioid_t *)array_at(aio_get_itemids(), id);
+    string *idstr = string_new2(0);
     aio_id_to_string(i, idstr);
-    char* idline = string_mkcstr(idstr);
+    char *idline = string_mkcstr(idstr);
 
-    struct aio_entryi* entry = (struct aio_entryi*)hashmap_get(aio_get_entryi(), idline);
-    struct aio_entrym* meta = (struct aio_entrym*)hashmap_get(aio_get_entrym(), idline);
+    struct aio_entryi *entry =
+        (struct aio_entryi *)hashmap_get(aio_get_entryi(), idline);
+    struct aio_entrym *meta =
+        (struct aio_entrym *)hashmap_get(aio_get_entrym(), idline);
 
     if (entry == NULL || meta == NULL) {
         return out;
     }
 
-    string_nconcatf(out, 1000, "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: %s\x1b[0m (%.1f/%.1f)\n", array_len(aio_get_itemids()), entry->itemid, entry->en_title, meta->rating, meta->rating_max);
+    string_nconcatf(out, 1000,
+                    "Results: %d\n-----------\nId: %lu\n\x1b[34mTitle: "
+                    "%s\x1b[0m (%.1f/%.1f)\n",
+                    array_len(aio_get_itemids()), entry->itemid,
+                    entry->en_title, meta->rating, meta->rating_max);
     if (entry->native_title[0] != 0) {
-        string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
+        string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n",
+                        entry->native_title);
     }
 
-    string* path = aio_get_thumbnail_path(entry->itemid);
+    string *path = aio_get_thumbnail_path(entry->itemid);
     string_del2(path);
 
     if (entry->collection[0] != 0) {
         for (int i = 0; i < strlen(entry->collection); i++) {
             if (entry->collection[i] == '\x1F') {
-                ((char*)entry->collection)[i] = ' ';
+                ((char *)entry->collection)[i] = ' ';
             }
         }
-        string_nconcatf(out, 1000, "\x1b[35mTags: %s\x1b[0m\n", entry->collection);
+        string_nconcatf(out, 1000, "\x1b[35mTags: %s\x1b[0m\n",
+                        entry->collection);
     }
-    string_nconcatf(out, 1000, "\x1b[36mType: %s\x1b[0m\n---------------\n", entry->type);
+    string_nconcatf(out, 1000, "\x1b[36mType: %s\x1b[0m\n---------------\n",
+                    entry->type);
 
-    string* desc = string_new2(0);
+    string *desc = string_new2(0);
 
     for (int i = 0; i < strlen(meta->description); i++) {
         if (i != 0 && i % info.width == 0) {
@@ -303,38 +301,41 @@ string* preview(struct selector_preview_info info)
     }
 
     if (meta->thumbnail[0] != 0) {
-        string* image_path_str = aio_get_thumbnail_path(entry->itemid);
-        if(image_path_str == NULL) {
+        string *image_path_str = aio_get_thumbnail_path(entry->itemid);
+        if (image_path_str == NULL) {
             goto nothumb;
         }
-        char* image_path = string_mkcstr(image_path_str);
+        char *image_path = string_mkcstr(image_path_str);
 
         struct stat st;
         if (stat(image_path, &st) != 0) {
             CURLcode err;
-            unsigned char* thumbnail = aio_get_thumbnail(entry->itemid, &err);
-            if((uint64_t)thumbnail > 0x63) {
+            unsigned char *thumbnail = aio_get_thumbnail(entry->itemid, &err);
+            if ((uint64_t)thumbnail > 0x63) {
                 free(thumbnail);
             } else {
                 log("Could not download thumbnail: %d\n", err);
             }
         }
 
-        string* sixel_path_str = string_new2(string_len(image_path_str) + sizeof(".sixel"));
+        string *sixel_path_str =
+            string_new2(string_len(image_path_str) + sizeof(".sixel"));
         //-1 because it's a cstr
         string_set(sixel_path_str, image_path, string_len(image_path_str) - 1);
         string_concat(sixel_path_str, cstr_len(".sixel"));
 
-        char* sixel_path = string_mkcstr(sixel_path_str);
+        char *sixel_path = string_mkcstr(sixel_path_str);
 
         if (stat(sixel_path, &st) != 0) {
-            string* sixel = string_new2(1024 * 1024 * 10);
+            string *sixel = string_new2(1024 * 1024 * 10);
 
-            log("Creating sixel for %s (%ld)\n", entry->en_title, entry->itemid);
+            log("Creating sixel for %s (%ld)\n", entry->en_title,
+                entry->itemid);
 
             int res = printSixel(image_path, sixel);
             if (res == 0) {
-                string_nconcatf(out, string_len(sixel), "%s\n", string_mkcstr(sixel));
+                string_nconcatf(out, string_len(sixel), "%s\n",
+                                string_mkcstr(sixel));
                 int f = open(sixel_path, O_RDWR | O_CREAT, 0644);
                 write(f, sixel->data, sixel->len);
                 close(f);
@@ -342,7 +343,7 @@ string* preview(struct selector_preview_info info)
             string_del2(sixel);
         } else {
             int f = open(sixel_path, O_RDONLY);
-            char* buf = malloc(st.st_size + 1);
+            char *buf = malloc(st.st_size + 1);
             if (buf == NULL) {
                 close(f);
             } else {
@@ -356,7 +357,7 @@ string* preview(struct selector_preview_info info)
 
         string_del2(image_path_str);
     }
-    nothumb:
+nothumb:
 
     string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));
     string_del2(desc);
@@ -364,8 +365,7 @@ string* preview(struct selector_preview_info info)
     return out;
 }
 
-int main(const int argc, char* argv[])
-{
+int main(const int argc, char *argv[]) {
     VIPS_INIT(argv[0]);
 
     aio_init();
@@ -373,22 +373,22 @@ int main(const int argc, char* argv[])
     errf = fopen("./log", "w");
 
     if (argc > 1) {
-        string* raw_actions_char_buf = string_new2(0);
-        for(int i = 1; i < argc; i++) {
+        string *raw_actions_char_buf = string_new2(0);
+        for (int i = 1; i < argc; i++) {
             string_concat(raw_actions_char_buf, argv[i], strlen(argv[i]) + 1);
         }
         handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
         return 0;
     }
 
-    char* search = NULL;
+    char *search = NULL;
     if (argc > 1) {
         search = argv[1];
     }
 
     action_search(search);
 
-    if(hashmap_item_count(aio_get_entryi()) == 0) {
+    if (hashmap_item_count(aio_get_entryi()) == 0) {
         printf("No results\n");
         return 1;
     }
@@ -397,18 +397,18 @@ int main(const int argc, char* argv[])
         .on_hover = NULL,
         .preview_gen = preview,
     };
-    array* lines = array_new2(0, sizeof(const char**));
+    array *lines = array_new2(0, sizeof(const char **));
     for (size_t i = 0; i < array_len(aio_get_itemids()); i++) {
-        aioid_t idint = *(aioid_t*)array_at(aio_get_itemids(), i);
-        struct aio_entryi* entry = aio_get_by_id(idint, aio_get_entryi());
+        aioid_t idint = *(aioid_t *)array_at(aio_get_itemids(), i);
+        struct aio_entryi *entry = aio_get_by_id(idint, aio_get_entryi());
         if (entry == NULL)
             continue;
         array_append(lines, &entry->en_title);
     }
 
-    selector* s = selector_new2(actions, lines);
+    selector *s = selector_new2(actions, lines);
     selector_id_t row = selector_select(s);
-    const char* z = selector_get_by_id(s, row);
+    const char *z = selector_get_by_id(s, row);
     selector_del2(s);
 
     // const char* action_list[] = {
@@ -425,7 +425,6 @@ int main(const int argc, char* argv[])
     // s = selector_new2(actions, action_arr);
     // selector_select(s);
     // selector_del2(s);
-
 
     printf("You selected: %s\n", z);
 
