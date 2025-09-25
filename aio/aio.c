@@ -383,37 +383,14 @@ void aio_id_to_string(const aioid_t id, string* out)
 
 struct aio_entryi* aio_entryi_new()
 {
-    struct aio_entryi* e = malloc(sizeof(struct aio_entryi));
-    e->itemid = 0;
-    e->uid = 0;
-    e->en_title = "";
-    e->native_title = "";
-    e->location = "";
-    e->purchase_price = 0;
-    e->parentid = 0;
-    e->type = "";
-    e->art_style = 0;
-    e->copyof = 0;
-    e->library = 0;
-    e->format = 0;
-    e->collection = "";
-    return e;
+    return calloc(1, sizeof(struct aio_entryi));
 }
 
 struct aio_entrym* aio_entrym_new()
 {
-    struct aio_entrym* e = malloc(sizeof(struct aio_entrym));
-    e->itemid = 0;
-    e->uid = 0;
+    struct aio_entrym* e = calloc(1, sizeof(struct aio_entrym));
     e->media_dependant = "{}";
     e->datapoints = "{}";
-    e->description = NULL;
-    e->genres = NULL;
-    e->native_title = NULL;
-    e->title = NULL;
-    e->provider = NULL;
-    e->provider_id = NULL;
-    e->thumbnail = NULL;
     return e;
 }
 

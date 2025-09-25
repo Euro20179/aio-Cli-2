@@ -284,7 +284,6 @@ string* preview(struct selector_preview_info info)
     }
 
     string* path = aio_get_thumbnail_path(entry->itemid);
-    string_nconcatf(out, string_len(path), "%s\n", string_mkcstr(path));
     string_del2(path);
 
     if (entry->collection[0] != 0) {
