@@ -325,7 +325,7 @@ string* preview(struct selector_preview_info info)
         string* sixel_path_str = string_new2(string_len(image_path_str) + sizeof(".sixel"));
         //-1 because it's a cstr
         string_set(sixel_path_str, image_path, string_len(image_path_str) - 1);
-        string_concat(sixel_path_str, ".sixel", sizeof(".sixel") -1);
+        string_concat(sixel_path_str, cstr_len(".sixel"));
 
         char* sixel_path = string_mkcstr(sixel_path_str);
 

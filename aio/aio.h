@@ -187,7 +187,7 @@ int aio_entrym_parse(const char* json, struct aio_entrym* out);
 hashmap* aio_get_entrym();
 
 ///returns a malloced bytearray of the thumbnail
-///caller must call free on the array when finished
+///ownership is transfered to the caller
 ///
 ///notes:
 ///if thumbnail is found in $AIO_THUMBNAIL_CACHE it will read that file

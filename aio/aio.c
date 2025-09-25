@@ -35,55 +35,55 @@ void aio_format_to_string(enum aio_entryformat format, string* out)
     // guaranteed not to have F_MOD_DIGITAL since we took it out above
     switch (format) {
     case F_VHS:
-        string_concat(out, "VHS", strlen("VHS"));
+        string_concat(out, cstr_len("VHS"));
         break;
     case F_CD:
-        string_concat(out, "CD", strlen("CD"));
+        string_concat(out, cstr_len("CD"));
         break;
     case F_DVD:
-        string_concat(out, "DVD", strlen("DVD"));
+        string_concat(out, cstr_len("DVD"));
         break;
     case F_BLURAY:
-        string_concat(out, "BLURAY", strlen("BLURAY"));
+        string_concat(out, cstr_len("BLURAY"));
         break;
     case F_4KBLURAY:
-        string_concat(out, "4KBLURAY", strlen("4KBLURAY"));
+        string_concat(out, cstr_len("4KBLURAY"));
         break;
     case F_MANGA:
-        string_concat(out, "MANGA", strlen("MANGA"));
+        string_concat(out, cstr_len("MANGA"));
         break;
     case F_BOOK:
-        string_concat(out, "BOOK", strlen("BOOK"));
+        string_concat(out, cstr_len("BOOK"));
         break;
     case F_DIGITAL:
-        string_concat(out, "DIGITAL", strlen("DIGITAL"));
+        string_concat(out, cstr_len("DIGITAL"));
         break;
     case F_BOARDGAME:
-        string_concat(out, "BOARDGAME", strlen("BOARDGAME"));
+        string_concat(out, cstr_len("BOARDGAME"));
         break;
     case F_STEAM:
-        string_concat(out, "STEAM", strlen("STEAM"));
+        string_concat(out, cstr_len("STEAM"));
         break;
     case F_NIN_SWITCH:
-        string_concat(out, "NIN_SWITCH", strlen("NIN_SWITCH"));
+        string_concat(out, cstr_len("NIN_SWITCH"));
         break;
     case F_XBOXONE:
-        string_concat(out, "XBOXONE", strlen("XBOXONE"));
+        string_concat(out, cstr_len("XBOXONE"));
         break;
     case F_XBOX360:
-        string_concat(out, "XBOX360", strlen("XBOX360"));
+        string_concat(out, cstr_len("XBOX360"));
         break;
     case F_OTHER:
-        string_concat(out, "OTHER", strlen("OTHER"));
+        string_concat(out, cstr_len("OTHER"));
         break;
     case F_VINYL:
-        string_concat(out, "VINYL", strlen("VINYL"));
+        string_concat(out, cstr_len("VINYL"));
         break;
     case F_IMAGE:
-        string_concat(out, "IMAGE", strlen("IMAGE"));
+        string_concat(out, cstr_len("IMAGE"));
         break;
     case F_UNOWNED:
-        string_concat(out, "UNOWNED", strlen("UNOWNED"));
+        string_concat(out, cstr_len("UNOWNED"));
         break;
     }
 
@@ -133,7 +133,8 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out)
 {
     // create a line from title and value
 #define line(title, value)                             \
-    string_concat(out, title ": ", strlen(title) + 2); \
+    /*+1 because \0 is included in sizeof, which accounts for the length of 1 of the 2 chars in ": "*/ \
+    string_concat(out, title ": ", sizeof(title) + 1); \
     string_concat(out, value, strlen(value));          \
     string_concat_char(out, '\n')
 
@@ -173,7 +174,7 @@ void aio_entryi_to_human_str(const struct aio_entryi* entry, string* out)
     line("Location", entry->location);
     linef("Purchase price", "%0.2lf", entry->purchase_price);
 
-    if (entry->collection == 0 || strlen(entry->collection) == 0) {
+    if (entry->collection == 0) {
         line("Tags", entry->collection);
     } else {
         string tagsList;
@@ -375,11 +376,7 @@ void aio_shutdown()
 
 void aio_id_to_string(const aioid_t id, string* out)
 {
-    char idbuf[32];
-    idbuf[0] = 0;
-    snprintf(idbuf, 32, "%ld", id);
-    int len = strlen(idbuf);
-    string_concat(out, idbuf, len);
+    string_nconcatf(out, 32, "%ld", id);
 }
 
 #undef key
