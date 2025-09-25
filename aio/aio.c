@@ -601,18 +601,18 @@ string* aio_get_thumbnail_cache_dir()
                 return NULL;
             }
             string_concat(final_image_path, home, strlen(home));
-            string_concat(final_image_path, "/.cache/aio-cli", sizeof("/.cache/aio-cli") - 1);
-            goto path_determined;
+            string_concat(final_image_path, cstr_len("/.cache"));
         }
 
         string_concat(final_image_path, cache, strlen(cache));
-        string_concat(final_image_path, "/aio-cli", sizeof("/aio-cli") - 1);
+        string_concat(final_image_path, cstr_len("/aio-cli"));
         goto path_determined;
     }
 
     string_concat(final_image_path, cache_dir, strlen(cache_dir));
 
 path_determined:
+    string_concat(final_image_path, cstr_len("/thumbnails"));
     return final_image_path;
 }
 

@@ -322,11 +322,12 @@ string* preview(struct selector_preview_info info)
             }
         }
 
-        //remove the \0 that got put on from string_mkcstr
-        string_slice_suffix(image_path_str, 1);
-        string_concat(image_path_str, ".sixel", sizeof(".sixel") -1);
+        string* sixel_path_str = string_new2(string_len(image_path_str) + sizeof(".sixel"));
+        //-1 because it's a cstr
+        string_set(sixel_path_str, image_path, string_len(image_path_str) - 1);
+        string_concat(sixel_path_str, ".sixel", sizeof(".sixel") -1);
 
-        char* sixel_path = string_mkcstr(image_path_str);
+        char* sixel_path = string_mkcstr(sixel_path_str);
 
         if (stat(sixel_path, &st) != 0) {
             string* sixel = string_new2(1024 * 1024 * 10);
