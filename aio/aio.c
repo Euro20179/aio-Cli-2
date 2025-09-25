@@ -482,7 +482,7 @@ void create_entry_items(string* line, size_t count, void* userdata)
         return;
     }
 
-    char buf[line->len + 1];
+    string_to_cstr_buf_create(buf, (*line));
     string_to_cstr(line, buf);
 
     struct aio_entryi* entry = aio_entryi_new();

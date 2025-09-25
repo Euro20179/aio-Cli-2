@@ -3,7 +3,7 @@
 #include <curl/curl.h>
 #include <stddef.h>
 
-#include "inc/string.h"
+#include "c-stdlib/string.h"
 
 //Create a full api path using the global api variable as a base, and puts the result in out
 //WARNING: This function **SHOULD NOT** be given ANY input that was not generated at compile time.

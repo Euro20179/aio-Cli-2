@@ -2,7 +2,7 @@
 #include <curl/curl.h>
 
 #include "globals.h"
-#include "inc/string.h"
+#include "c-stdlib/string.h"
 #include "aio/aio.h"
 #include "url.h"
 

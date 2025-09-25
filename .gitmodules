@@ -1,0 +1,6 @@
+[submodule "c-stdlib"]
+	path = c-stdlib
+	url = https://github.com/euro20179/c-stdlib
+[submodule "selector.h"]
+	path = selector.h
+	url = https://github.com/euro20179/selector.h

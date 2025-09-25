@@ -42,9 +42,9 @@
 #include <json-c/json_types.h>
 #include <stdint.h>
 
-#include "../inc/string.h"
-#include "../inc/hashmap.h"
-#include "../inc/array.h"
+#include "../c-stdlib/string.h"
+#include "../c-stdlib/hashmap.h"
+#include "../c-stdlib/array.h"
 
 // general info for an entry
 typedef json_object* EntryI_json;

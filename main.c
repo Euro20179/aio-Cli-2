@@ -21,12 +21,12 @@
 
 #include "aio/aio.h"
 #include "globals.h"
-#include "inc/hashmap.h"
-#include "inc/llist.h"
-#include "inc/string.h"
+#include "c-stdlib/hashmap.h"
+#include "c-stdlib/llist.h"
+#include "c-stdlib/string.h"
 #include "url.h"
 
-#include "selector/selector.h"
+#include "selector.h/selector.h"
 
 #define log(...)          \
     fprintf(errf, __VA_ARGS__); \
