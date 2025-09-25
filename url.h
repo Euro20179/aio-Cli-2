@@ -12,7 +12,3 @@ void mkapipath(char* out, const char* endpoint);
 
 //error must be CURL_ERROR_SIZE large
 CURLcode mkapireq(string* out, const char* endpoint, char* error);
-
-//makes a request and puts the text output into out
-//error must be CURL_ERROR_SIZE large
-CURLcode mkreq(string* out, char* path, char* error);

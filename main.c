@@ -282,6 +282,11 @@ string* preview(struct selector_preview_info info)
     if (entry->native_title[0] != 0) {
         string_nconcatf(out, 1000, "\x1b[34mNative Title: %s\x1b[0m\n", entry->native_title);
     }
+
+    string* path = aio_get_thumbnail_path(entry->itemid);
+    string_nconcatf(out, string_len(path), "%s\n", string_mkcstr(path));
+    string_del2(path);
+
     if (entry->collection[0] != 0) {
         for (int i = 0; i < strlen(entry->collection); i++) {
             if (entry->collection[i] == '\x1F') {
@@ -303,28 +308,25 @@ string* preview(struct selector_preview_info info)
     }
 
     if (meta->thumbnail[0] != 0) {
-        char image_path[sizeof("./test/") + idstr->len + 1];
-        char sixel_path[sizeof("./test/") + idstr->len + 1 + sizeof(".sixel")];
-        snprintf(image_path, sizeof("./test/") + idstr->len + 1, "./test/%s", idline);
-        snprintf(sixel_path, sizeof("./test/") + idstr->len + 1 + sizeof(".sixel"), "./test/%s.sixel", idline);
+        string* image_path_str = aio_get_thumbnail_path(entry->itemid);
+        char* image_path = string_mkcstr(image_path_str);
 
         struct stat st;
         if (stat(image_path, &st) != 0) {
-            string thumbnail;
-            // reserve 10 megs to hopefully avoid massive reallocs
-            string_new(&thumbnail, 1024 * 1024 * 10);
-
-            char error[CURL_ERROR_SIZE];
-            CURLcode res = mkreq(&thumbnail, (char*)meta->thumbnail, error);
-            if (res != 0) {
-                fprintf(errf, "%s\n", error);
-            } else if (string_len(&thumbnail) != 0) {
-                int f = open(image_path, O_CREAT | O_RDWR, 0644);
-                write(f, thumbnail.data, thumbnail.len);
-                close(f);
+            CURLcode err;
+            unsigned char* thumbnail = aio_get_thumbnail(entry->itemid, &err);
+            if(thumbnail > 0x63) {
+                free(thumbnail);
+            } else {
+                log("Could not download thumbnail: %d\n", err);
             }
-            string_del(&thumbnail);
         }
+
+        //remove the \0 that got put on from string_mkcstr
+        string_slice_suffix(image_path_str, 1);
+        string_concat(image_path_str, ".sixel", sizeof(".sixel") -1);
+
+        char* sixel_path = string_mkcstr(image_path_str);
 
         if (stat(sixel_path, &st) != 0) {
             string* sixel = string_new2(1024 * 1024 * 10);
@@ -352,6 +354,8 @@ string* preview(struct selector_preview_info info)
                 close(f);
             }
         }
+
+        string_del2(image_path_str);
     }
 
     string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));

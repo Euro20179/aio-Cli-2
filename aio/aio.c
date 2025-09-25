@@ -2,6 +2,7 @@
 #include "../url.h"
 
 #include <curl/curl.h>
+#include <fcntl.h>
 #include <json-c/arraylist.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
@@ -12,10 +13,14 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
+
+#include <sys/stat.h>
 
 #define key(json, name) json_object_object_get(json, name)
 
-void _aio_clear_items() {
+void _aio_clear_items()
+{
     hashmap_del_each(&user, aio_free);
 }
 
@@ -217,7 +222,8 @@ int aio_entryi_parse(const char* json, struct aio_entryi* out)
     return 0;
 }
 
-hashmap* aio_get_entryi() {
+hashmap* aio_get_entryi()
+{
     return &info;
 }
 
@@ -253,8 +259,62 @@ int aio_entrym_parse(const char* json, struct aio_entrym* out)
     return 0;
 }
 
-hashmap* aio_get_entrym() {
+hashmap* aio_get_entrym()
+{
     return &meta;
+}
+
+unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error)
+{
+    string* path = aio_get_thumbnail_path(entryid);
+    if (path == NULL) {
+        return (unsigned char*)1;
+    }
+
+    struct aio_entrym* m = aio_get_by_id(entryid, &meta);
+    if (m->thumbnail == NULL) {
+        return NULL;
+    }
+
+    char* thumb_path = string_mkcstr(path);
+
+    struct stat st;
+    if (stat(thumb_path, &st) != 0) {
+        string* thumbnail = string_new2(1024 * 1024 * 10);
+
+        char error[CURL_ERROR_SIZE];
+        CURLcode res = mkreq(thumbnail, (char*)m->thumbnail, error);
+        if(res != 0) {
+            *error = res;
+            string_del2(path);
+            return (unsigned char*)2;
+        }
+
+        if(string_len(thumbnail) == 0) {
+            string_del2(path);
+            return (unsigned char*)3;
+        }
+        int f = open(thumb_path, O_CREAT | O_RDWR, 0644);
+        write(f, thumbnail->data, thumbnail->len);
+        close(f);
+
+        unsigned char* out = malloc(string_len(thumbnail));
+        memcpy(out, thumbnail->data, string_len(thumbnail));
+        return out;
+    }
+
+    int f = open(thumb_path, O_RDONLY);
+    unsigned char* buf = malloc(st.st_size);
+    if(buf == NULL) {
+        close(f);
+        string_del2(path);
+        return NULL;
+    }
+
+    read(f, buf, st.st_size);
+    close(f);
+    string_del2(path);
+    return buf;
 }
 
 int aio_entry_get_key(EntryI_json info, const char* key, void* out)
@@ -286,15 +346,26 @@ int aio_entry_get_key(EntryI_json info, const char* key, void* out)
     return json_object_get_uint64(key(info, "ItemId"));
 }
 
-void aio_init() {
+void aio_init()
+{
     hashmap_new(&info);
     hashmap_new(&meta);
     hashmap_new(&user);
 
     itemids = array_new2(0, sizeof(aioid_t));
+
+    string* dir = aio_get_thumbnail_cache_dir();
+    const char* cdir = string_mkcstr(dir);
+
+    struct stat st;
+    if(stat(cdir, &st) != 0) {
+        mkdir(cdir, 0755);
+    }
+    string_del2(dir);
 }
 
-void aio_shutdown() {
+void aio_shutdown()
+{
     hashmap_del_each(&info, aio_free);
     hashmap_del_each(&user, aio_free);
     hashmap_del_each(&meta, aio_free);
@@ -354,7 +425,8 @@ void aio_free(void* entry)
     free(entry);
 }
 
-array* aio_get_itemids() {
+array* aio_get_itemids()
+{
     return itemids;
 }
 
@@ -455,7 +527,8 @@ void create_entry_items(string* line, size_t count, void* userdata)
     hashmap_set_safe(&info, move(key), entry);
 }
 
-CURLcode aio_search(string* search) {
+CURLcode aio_search(string* search)
+{
     string* uri = string_new2(string_len(search) * 3);
     string_uri_encode(search, uri);
     char* s = string_mkcstr(uri);
@@ -479,7 +552,8 @@ CURLcode aio_search(string* search) {
     return 0;
 }
 
-CURLcode aio_load_metadata() {
+CURLcode aio_load_metadata()
+{
     char buf[CURL_ERROR_SIZE];
 
     string out;
@@ -496,11 +570,80 @@ CURLcode aio_load_metadata() {
     return 0;
 }
 
-void* aio_get_by_id(aioid_t id, void* from_map) {
+void* aio_get_by_id(aioid_t id, void* from_map)
+{
     string* idstr = string_new2(32);
     aio_id_to_string(id, idstr);
     char* line = string_mkcstr(idstr);
     void* entry = hashmap_get(from_map, line);
     string_del2(idstr);
     return entry;
+}
+
+size_t curlWriteCB(char* ptr, size_t size, size_t nmemb, void* userdata)
+{
+    for (int i = 0; i < nmemb; i++) {
+        string_concat_char((string*)userdata, ptr[i]);
+    }
+    return nmemb;
+}
+
+string* aio_get_thumbnail_cache_dir()
+{
+    string* final_image_path = string_new2(256);
+    char* cache_dir = getenv("AIO_THUMBNAIL_CACHE");
+    if (cache_dir == NULL) {
+        char* cache = getenv("XDG_CACHE_HOME");
+        if (cache == NULL) {
+            char* home = getenv("HOME");
+            if (home == NULL) {
+                string_del2(final_image_path);
+                return NULL;
+            }
+            string_concat(final_image_path, home, strlen(home));
+            string_concat(final_image_path, "/.cache/aio-cli", sizeof("/.cache/aio-cli") - 1);
+            goto path_determined;
+        }
+
+        string_concat(final_image_path, cache, strlen(cache));
+        string_concat(final_image_path, "/aio-cli", sizeof("/aio-cli") - 1);
+        goto path_determined;
+    }
+
+    string_concat(final_image_path, cache_dir, strlen(cache_dir));
+
+path_determined:
+    return final_image_path;
+}
+
+string* aio_get_thumbnail_path(aioid_t id) {
+    string* dir = aio_get_thumbnail_cache_dir();
+    if(dir == NULL) {
+        return NULL;
+    }
+
+    string* strid = string_new2(32);
+    string_concat(strid, "/", 1);
+    aio_id_to_string(id, strid);
+    size_t idlen = string_len(strid);
+    string_concat(dir, string_mkcstr(strid), idlen);
+    string_del2(strid);
+    return dir;
+}
+
+CURLcode mkreq(string* out, const char* path, char* error)
+{
+    CURL* curl = curl_easy_init();
+    CURLcode res;
+
+    curl_easy_setopt(curl, CURLOPT_URL, path);
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
+    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCB);
+    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
+
+    res = curl_easy_perform(curl);
+
+    curl_easy_cleanup(curl);
+
+    return res;
 }

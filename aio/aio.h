@@ -15,6 +15,10 @@
 
                                    = USAGE =
 
+    == Environment variables ==
+
+    $AIO_THUMBNAIL_CACHE - directory containing downloaded thumbnails
+
     == Startup ==
 
     call aio_init() at the start
@@ -182,6 +186,20 @@ int aio_entrym_parse(const char* json, struct aio_entrym* out);
 ///gets the hashmap of loaded meta entries
 hashmap* aio_get_entrym();
 
+///returns a malloced bytearray of the thumbnail
+///caller must call free on the array when finished
+///
+///notes:
+///if thumbnail is found in $AIO_THUMBNAIL_CACHE it will read that file
+///if not, it will send a network request to download the thumbnail and cache it
+///
+///returns NULL if there is no thumbnail
+///returns 1 if it cannot determine a path
+///returns 2 if there is a curl error
+///returns 3 if the thumbnail is 0 len
+///errors are guaranteed to be < 100
+///puts the curlcode into error
+unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error);
 // }}}
 
 
@@ -214,9 +232,23 @@ CURLcode aio_load_metadata();
 void aio_init();
 void aio_shutdown();
 
+///CONCATINATES the id to string
 void aio_id_to_string(const aioid_t, string*);
 
 ///gets an entry by id
 ///from_map can be the resulting hashmap from aio_get_entryi() or aio_get_entrym()
 void* aio_get_by_id(aioid_t id, void* from_map);
+
+///gets the directory where thumbnails are cached
+///caller must call string_del2 on the returned string
+///returns NULL if path cannot be determined
+string* aio_get_thumbnail_cache_dir();
+
+///gets a specific thumbnail path for an id
+///caller must call string_del2 on the returned string
+///returns NULL if path cannot be determined
+string* aio_get_thumbnail_path(aioid_t id);
+
+///makes a request to path, putting the body into out, and curl error into error
+CURLcode mkreq(string* out, const char* path, char* error);
 // }}}
