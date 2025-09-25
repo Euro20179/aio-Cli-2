@@ -315,7 +315,7 @@ string* preview(struct selector_preview_info info)
         if (stat(image_path, &st) != 0) {
             CURLcode err;
             unsigned char* thumbnail = aio_get_thumbnail(entry->itemid, &err);
-            if(thumbnail > 0x63) {
+            if((uint64_t)thumbnail > 0x63) {
                 free(thumbnail);
             } else {
                 log("Could not download thumbnail: %d\n", err);
