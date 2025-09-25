@@ -19,12 +19,11 @@
 #include <sixel.h>
 #include <vips/vips.h>
 
-#include "aio/aio.h"
 #include "globals.h"
+#include "aio/aio.h"
 #include "c-stdlib/hashmap.h"
 #include "c-stdlib/llist.h"
 #include "c-stdlib/string.h"
-#include "url.h"
 
 #include "selector.h/selector.h"
 
@@ -32,9 +31,6 @@
     fprintf(errf, __VA_ARGS__); \
     fflush(errf)
 
-
-// initizlied in main
-static bool items_allocated = false;
 
 int sixel_write(char* data, int size, void* priv)
 {
@@ -308,6 +304,9 @@ string* preview(struct selector_preview_info info)
 
     if (meta->thumbnail[0] != 0) {
         string* image_path_str = aio_get_thumbnail_path(entry->itemid);
+        if(image_path_str == NULL) {
+            goto nothumb;
+        }
         char* image_path = string_mkcstr(image_path_str);
 
         struct stat st;
@@ -357,6 +356,7 @@ string* preview(struct selector_preview_info info)
 
         string_del2(image_path_str);
     }
+    nothumb:
 
     string_nconcatf(out, 3000, "%s\n", string_mkcstr(desc));
     string_del2(desc);
@@ -387,8 +387,6 @@ int main(const int argc, char* argv[])
     }
 
     action_search(search);
-
-    hashmap* info = aio_get_entryi();
 
     if(hashmap_item_count(aio_get_entryi()) == 0) {
         printf("No results\n");

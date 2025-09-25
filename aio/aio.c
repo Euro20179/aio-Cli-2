@@ -17,6 +17,13 @@
 
 #include <sys/stat.h>
 
+hashmap info;
+hashmap meta;
+hashmap user;
+
+array* itemids;
+
+
 #define key(json, name) json_object_object_get(json, name)
 
 void _aio_clear_items()
@@ -84,6 +91,8 @@ void aio_format_to_string(enum aio_entryformat format, string* out)
         break;
     case F_UNOWNED:
         string_concat(out, cstr_len("UNOWNED"));
+        break;
+    case F_MOD_DIGITAL:
         break;
     }
 
@@ -423,6 +432,8 @@ const char* aio_action_to_string(const enum aio_action action)
         return "ReViewing";
     case S_WAITING:
         return "Waiting";
+    default:
+        return "";
     }
 }
 
@@ -514,7 +525,7 @@ CURLcode aio_search(string* search)
     string_new(&out, 0);
 
     char buf[CURL_ERROR_SIZE];
-    CURLcode res = mkapireq(&out, pathbuf, buf);
+    CURLcode res = aio_mkapireq(&out, pathbuf, buf);
     if (res != 0) {
         return res;
     }
@@ -534,7 +545,7 @@ CURLcode aio_load_metadata()
     string_new(&out, 0);
 
     const char* metadataPath = "/api/v1/metadata/list-entries?uid=1";
-    CURLcode res = mkapireq(&out, metadataPath, buf);
+    CURLcode res = aio_mkapireq(&out, metadataPath, buf);
     if (res != 0) {
         return res;
     }
@@ -552,14 +563,6 @@ void* aio_get_by_id(aioid_t id, void* from_map)
     void* entry = hashmap_get(from_map, line);
     string_del2(idstr);
     return entry;
-}
-
-size_t curlWriteCB(char* ptr, size_t size, size_t nmemb, void* userdata)
-{
-    for (int i = 0; i < nmemb; i++) {
-        string_concat_char((string*)userdata, ptr[i]);
-    }
-    return nmemb;
 }
 
 string* aio_get_thumbnail_cache_dir()
@@ -605,19 +608,23 @@ string* aio_get_thumbnail_path(aioid_t id) {
     return dir;
 }
 
-CURLcode mkreq(string* out, const char* path, char* error)
-{
-    CURL* curl = curl_easy_init();
-    CURLcode res;
+void aio_mkapipath(char* out, const char* endpoint) {
+    size_t len = strlen(endpoint);
 
-    curl_easy_setopt(curl, CURLOPT_URL, path);
-    curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
-    curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, curlWriteCB);
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, error);
+    strcat(out, AIO_API);
+    strcat(out, endpoint);
+    *(out + len + AIO_APILEN + 1) = '\0';
+}
 
-    res = curl_easy_perform(curl);
+CURLcode aio_mkapireq(string* out, const char* endpoint, char* error) {
+    char path[strlen(endpoint) + AIO_APILEN + 2];
+    //set first byte to 0, so that strcat determines the length to be 0
+    path[0] = 0;
 
-    curl_easy_cleanup(curl);
+    aio_mkapipath(path, endpoint);
+
+    CURLcode res =mkreq(out, path, error);
 
     return res;
 }
+

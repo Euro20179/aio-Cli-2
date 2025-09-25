@@ -37,6 +37,15 @@
 */
 
 #pragma once
+
+#ifndef AIO_APILEN
+#error AIO_APILEN must be defined before including this file
+#endif
+
+#ifndef AIO_API
+#error AIO_API must be defined before including this file
+#endif
+
 #include <curl/curl.h>
 #include <json-c/json_tokener.h>
 #include <json-c/json_types.h>
@@ -63,11 +72,11 @@ typedef int64_t aioid_t;
 
 
 //This is where all the stuff gets stored and retrieved from
-static hashmap info;
-static hashmap meta;
-static hashmap user;
+extern hashmap info;
+extern hashmap meta;
+extern hashmap user;
 
-static array* itemids;
+extern array* itemids;
 
 enum aio_artstyle : uint64_t {
     AS_ANIME = 1,
@@ -249,6 +258,10 @@ string* aio_get_thumbnail_cache_dir();
 ///returns NULL if path cannot be determined
 string* aio_get_thumbnail_path(aioid_t id);
 
-///makes a request to path, putting the body into out, and curl error into error
-CURLcode mkreq(string* out, const char* path, char* error);
+//Create a full api path using the global api variable as a base, and puts the result in out
+//WARNING: This function **SHOULD NOT** be given ANY input that was not generated at compile time.
+void aio_mkapipath(char* out, const char* endpoint);
+
+//error must be CURL_ERROR_SIZE large
+CURLcode aio_mkapireq(string* out, const char* endpoint, char* error);
 // }}}

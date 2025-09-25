@@ -1,3 +1,6 @@
 #!/bin/bash
 
-gcc -std=c99 -O2 `pkg-config --libs json-c --cflags json-c vips` -lcurl -lsixel "$@" **/*.c *.c
+: "${AIO_API="\"https://aioapi.seceurity.place\""}"
+: "${AIO_APILEN=$((${#AIO_API}-2))}"
+
+gcc  -Wall -std=c99 -D"AIO_API=${AIO_API}" -D"AIO_APILEN=${AIO_APILEN}" -O2 `pkg-config --libs json-c --cflags json-c vips` -lcurl -lsixel "$@" **/*.c *.c

@@ -5,3 +5,5 @@ CompileFlags:
     - "-I/usr/include/glib-2.0"
     - "-I/usr/lib/glib-2.0/include"
     - "-I/usr/include/sysprof-6"
+    - "-DAIO_APILEN=30"
+    - "-DAIO_API=\"https://aioapi.seceurity.place\""
