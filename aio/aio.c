@@ -1,5 +1,4 @@
 #include "aio.h"
-#include "../globals.h"
 #include "../url.h"
 
 #include <curl/curl.h>
@@ -308,7 +307,6 @@ unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error)
 
         if(res != 0) {
             *error = res;
-            fprintf(errf, "%s\n", error);
             string_del2(path);
             string_del2(thumbnail);
             return (unsigned char*)2;
