@@ -1,4 +1,5 @@
 #include "aio.h"
+#include "../globals.h"
 #include "../url.h"
 
 #include <curl/curl.h>
@@ -286,6 +287,14 @@ unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error)
         return NULL;
     }
 
+    string* thumbnail_url = string_from_cstr(m->thumbnail, strlen(m->thumbnail));
+    //relative url, prepend AIO_API
+    if(string_at(thumbnail_url, 0) == '/') {
+        string* prepend = string_from_cstr(cstr_len(AIO_API));
+        string_prepend(thumbnail_url, prepend);
+        string_del2(prepend);
+    }
+
     char* thumb_path = string_mkcstr(path);
 
     struct stat st;
@@ -293,15 +302,21 @@ unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error)
         string* thumbnail = string_new2(1024 * 1024 * 10);
 
         char error[CURL_ERROR_SIZE];
-        CURLcode res = mkreq(thumbnail, (char*)m->thumbnail, error);
+        CURLcode res = mkreq(thumbnail, string_mkcstr(thumbnail_url), error);
+
+        string_del2(thumbnail_url);
+
         if(res != 0) {
             *error = res;
+            fprintf(errf, "%s\n", error);
             string_del2(path);
+            string_del2(thumbnail);
             return (unsigned char*)2;
         }
 
         if(string_len(thumbnail) == 0) {
             string_del2(path);
+            string_del2(thumbnail);
             return (unsigned char*)3;
         }
         int f = open(thumb_path, O_CREAT | O_RDWR, 0644);
@@ -310,6 +325,7 @@ unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error)
 
         unsigned char* out = malloc(string_len(thumbnail));
         memcpy(out, thumbnail->data, string_len(thumbnail));
+        string_del2(thumbnail);
         return out;
     }
 

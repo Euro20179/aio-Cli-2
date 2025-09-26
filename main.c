@@ -309,12 +309,13 @@ string *preview(struct selector_preview_info info) {
 
         struct stat st;
         if (stat(image_path, &st) != 0) {
+            string_nconcatf(out, string_len(image_path_str), "%s\n", image_path);
             CURLcode err;
             unsigned char *thumbnail = aio_get_thumbnail(entry->itemid, &err);
             if ((uint64_t)thumbnail > 0x63) {
                 free(thumbnail);
             } else {
-                log("Could not download thumbnail: %d\n", err);
+                log("Could not download thumbnail: %zu %d\n", (uint64_t)thumbnail, err);
             }
         }
 
@@ -356,6 +357,7 @@ string *preview(struct selector_preview_info info) {
         }
 
         string_del2(image_path_str);
+        string_del2(sixel_path_str);
     }
 nothumb:
 
@@ -369,6 +371,8 @@ int main(const int argc, char *argv[]) {
     VIPS_INIT(argv[0]);
 
     aio_init();
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
 
     errf = fopen("./log", "w");
 
@@ -427,6 +431,8 @@ int main(const int argc, char *argv[]) {
     // selector_del2(s);
 
     printf("You selected: %s\n", z);
+
+    curl_global_cleanup();
 
     fclose(errf);
 }
