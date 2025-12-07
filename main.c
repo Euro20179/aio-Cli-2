@@ -28,9 +28,17 @@
 
 #include "selector.h/selector.h"
 
+static int verbose = false;
+
 #define log(...)                                                               \
     fprintf(errf, __VA_ARGS__);                                                \
     fflush(errf)
+
+#define vlog(...) \
+    if(verbose) { \
+        fprintf(errf, __VA_ARGS__); \
+        fflush(errf); \
+    }
 
 int sixel_write(char *data, int size, void *priv) {
     string *out = priv;
@@ -209,14 +217,17 @@ void handle_action(string *action, size_t action_no, void *userdata) {
 
         llist_append(&state->action_args, action_cpy);
     } else if (strncmp(act, "s", 1) == 0) {
+        vlog("[Q ACTION]: s\n");
         state->waiting_on_n_more_args = 1;
         state->action = "s";
     } else if (strncmp(act, "p", 1) == 0) {
+        vlog("[Q ACTION]: p\n");
         user_print_all();
     }
 
     if (just_hit_0) {
         if (state->action[0] == 's') {
+            vlog("[ACTION]: s\n");
             string *search = llist_at(&state->action_args, 0);
             action_search(string_mkcstr(search));
 
@@ -364,19 +375,33 @@ nothumb:
 void help() {
     printf("%s\n",
            "aio-cli [options] [actions...]\n"
+           "    OPTIONS:\n"
+           "        -v : verbose\n"
+           "\n"
            "    ACTIONS:\n"
+           "        s <search>: search with a query-v3 <search> (does not print anything)"
+           "        p         : print the results"
     );
 }
 
 int main(const int argc, char *argv[]) {
     VIPS_INIT(argv[0]);
 
+    const char* log_file = "./log";
+
     char opt;
-    while((opt = getopt(argc, argv, "h")) != -1) {
+    while((opt = getopt(argc, argv, "hvl:")) != -1) {
         switch(opt) {
             case 'h':
                 help();
                 exit(0);
+                break;
+            case 'v':
+                verbose = true;
+                break;
+            case 'l':
+                log_file = optarg;
+                break;
         }
     }
 
@@ -384,7 +409,7 @@ int main(const int argc, char *argv[]) {
 
     curl_global_init(CURL_GLOBAL_DEFAULT);
 
-    errf = fopen("./log", "w");
+    errf = fopen(log_file, "w");
 
     if (argc > 1) {
         string *raw_actions_char_buf = string_new2(0);
