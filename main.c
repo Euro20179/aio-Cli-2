@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -136,8 +137,7 @@ success:
 
 int add(int a, int b) { return a + b; }
 
-void print_item(void *item) {
-    struct aio_entryi *a = item;
+void print_item(struct aio_entryi *a) {
     string str;
     string_new(&str, 256);
     aio_entryi_to_human_str(a, &str);
@@ -145,7 +145,7 @@ void print_item(void *item) {
     string_del(&str);
 }
 
-void user_print_all() { hashmap_foreach(aio_get_entryi(), print_item); }
+void user_print_all() { hashmap_foreach(aio_get_entryi(), (void(*)(void*))print_item); }
 
 void del_item(void *item) { free(item); }
 
@@ -218,14 +218,8 @@ void handle_action(string *action, size_t action_no, void *userdata) {
     if (just_hit_0) {
         if (state->action[0] == 's') {
             string *search = llist_at(&state->action_args, 0);
-            string *uri = string_new2(string_len(search));
+            action_search(string_mkcstr(search));
 
-            string_uri_encode(search, uri);
-
-            char *s = string_mkcstr(uri);
-            action_search(s);
-
-            string_del2(uri);
             llist_clear(&state->action_args);
             string_del2(search);
         }
@@ -367,8 +361,24 @@ nothumb:
     return out;
 }
 
+void help() {
+    printf("%s\n",
+           "aio-cli [options] [actions...]\n"
+           "    ACTIONS:\n"
+    );
+}
+
 int main(const int argc, char *argv[]) {
     VIPS_INIT(argv[0]);
+
+    char opt;
+    while((opt = getopt(argc, argv, "h")) != -1) {
+        switch(opt) {
+            case 'h':
+                help();
+                exit(0);
+        }
+    }
 
     aio_init();
 
@@ -378,7 +388,7 @@ int main(const int argc, char *argv[]) {
 
     if (argc > 1) {
         string *raw_actions_char_buf = string_new2(0);
-        for (int i = 1; i < argc; i++) {
+        for (int i = optind; i < argc; i++) {
             string_concat(raw_actions_char_buf, argv[i], strlen(argv[i]) + 1);
         }
         handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
