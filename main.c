@@ -450,20 +450,22 @@ int main(const int argc, char *argv[]) {
     const char *z = selector_get_by_id(s, row);
     selector_del2(s);
 
-    // const char* action_list[] = {
-    //     "finish",
-    //     "start",
-    // };
-    //
-    // array* action_arr = array_new2(2, sizeof(const char**));
-    // for(int i = 0; i < 2; i++) {
-    //     array_append(action_arr, &action_list[i]);
-    // }
+    const size_t action_count = 3;
+    const char* action_list[] = {
+        "finish",
+        "start",
+        "print",
+    };
 
-    // actions.preview_gen = NULL;
-    // s = selector_new2(actions, action_arr);
-    // selector_select(s);
-    // selector_del2(s);
+    array* action_arr = array_new2(action_count, sizeof(const char**));
+    for(int i = 0; i < action_count; i++) {
+        array_append(action_arr, &action_list[i]);
+    }
+
+    actions.preview_gen = NULL;
+    s = selector_new2(actions, action_arr);
+    selector_select(s);
+    selector_del2(s);
 
     printf("You selected: %s\n", z);
 
