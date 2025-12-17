@@ -447,9 +447,14 @@ int main(const int argc, char *argv[]) {
     }
 
     selector *s = selector_new2(actions, lines);
-    selector_id_t row = selector_select(s);
+    int selector_status;
+    selector_id_t row = selector_select(s, &selector_status);
     const char *z = selector_get_by_id(s, row);
     selector_del2(s);
+
+    if (selector_status == 2) {
+        goto end;
+    }
 
     const size_t action_count = 3;
     const char* action_list[] = {
@@ -465,8 +470,12 @@ int main(const int argc, char *argv[]) {
 
     actions.preview_gen = NULL;
     s = selector_new2(actions, action_arr);
-    selector_select(s);
+    selector_select(s, &selector_status);
     selector_del2(s);
+
+    if (selector_status == 2) {
+        goto end;
+    }
 
     int* id = array_at(aio_get_itemids(), row);
     struct aio_entryi* i = aio_get_by_id(*id, aio_get_entryi());
@@ -477,6 +486,7 @@ int main(const int argc, char *argv[]) {
 
     printf("You selected: %s\n", z);
 
+end:
     curl_global_cleanup();
 
     fclose(errf);
