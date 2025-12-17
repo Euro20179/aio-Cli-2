@@ -8,5 +8,5 @@ gcc -o aio-cli \
     -std=c99\
     -D"AIO_API=${AIO_API}" -D"AIO_APILEN=${AIO_APILEN}"\
     -O2\
-    `pkg-config --libs json-c --cflags json-c vips` -lcurl -lsixel -lselector\
+    `pkg-config --libs --cflags json-c vips libcurl libsixel` -lselector\
     "$@" ./**/*.c ./*.c
