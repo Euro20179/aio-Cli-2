@@ -1,10 +1,10 @@
 #include <fcntl.h>
+#include <getopt.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <getopt.h>
 
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -30,14 +30,16 @@
 
 static int verbose = false;
 
+static const char *log_file = "./log";
+
 #define log(...)                                                               \
     fprintf(errf, __VA_ARGS__);                                                \
     fflush(errf)
 
-#define vlog(...) \
-    if(verbose) { \
-        fprintf(errf, __VA_ARGS__); \
-        fflush(errf); \
+#define vlog(...)                                                              \
+    if (verbose) {                                                             \
+        fprintf(errf, __VA_ARGS__);                                            \
+        fflush(errf);                                                          \
     }
 
 int sixel_write(char *data, int size, void *priv) {
@@ -153,7 +155,9 @@ void print_item(struct aio_entryi *a) {
     string_del(&str);
 }
 
-void user_print_all() { hashmap_foreach(aio_get_entryi(), (void(*)(void*))print_item); }
+void user_print_all() {
+    hashmap_foreach(aio_get_entryi(), (void (*)(void *))print_item);
+}
 
 void del_item(void *item) { free(item); }
 
@@ -314,13 +318,15 @@ string *preview(struct selector_preview_info info) {
 
         struct stat st;
         if (stat(image_path, &st) != 0) {
-            string_nconcatf(out, string_len(image_path_str), "%s\n", image_path);
+            string_nconcatf(out, string_len(image_path_str), "%s\n",
+                            image_path);
             CURLcode err;
             unsigned char *thumbnail = aio_get_thumbnail(entry->itemid, &err);
             if ((uint64_t)thumbnail > 0x63) {
                 free(thumbnail);
             } else {
-                log("Could not download thumbnail: %zu %d\n", (uint64_t)thumbnail, err);
+                log("Could not download thumbnail: %zu %d\n",
+                    (uint64_t)thumbnail, err);
             }
         }
 
@@ -373,70 +379,43 @@ nothumb:
 }
 
 void help() {
-    printf("%s\n",
-           "aio-cli [options] [actions...]\n"
-           "    OPTIONS:\n"
-           "        -v : verbose\n"
-           "\n"
-           "    ACTIONS:\n"
-           "        s <search>: search with a query-v3 <search> (does not print anything)"
-           "        p         : print the results"
-    );
+    printf("%s\n", "aio-cli [options] [actions...]\n"
+                   "    OPTIONS:\n"
+                   "        -v : verbose\n"
+                   "\n"
+                   "    ACTIONS:\n"
+                   "        s <search>: search with a query-v3 <search> (does "
+                   "not print anything)"
+                   "        p         : print the results");
 }
 
-int main(const int argc, char *argv[]) {
-    VIPS_INIT(argv[0]);
-
-    const char* log_file = "./log";
-
+void handle_opts(int argc, char *argv[]) {
     char opt;
-    while((opt = getopt(argc, argv, "hvl:")) != -1) {
-        switch(opt) {
-            case 'h':
-                help();
-                exit(0);
-                break;
-            case 'v':
-                verbose = true;
-                break;
-            case 'l':
-                log_file = optarg;
-                break;
+    while ((opt = getopt(argc, argv, "hvl:")) != -1) {
+        switch (opt) {
+        case 'h':
+            help();
+            exit(0);
+            break;
+        case 'v':
+            verbose = true;
+            break;
+        case 'l':
+            log_file = optarg;
+            break;
         }
     }
+}
 
-    aio_init();
-
-    curl_global_init(CURL_GLOBAL_DEFAULT);
-
-    errf = fopen(log_file, "w");
-
-    if (argc > 1) {
-        string *raw_actions_char_buf = string_new2(0);
-        for (int i = optind; i < argc; i++) {
-            string_concat(raw_actions_char_buf, argv[i], strlen(argv[i]) + 1);
-        }
-        handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
-        return 0;
+void do_actions(int argc, char *argv[]) {
+    string *raw_actions_char_buf = string_new2(0);
+    for (int i = optind; i < argc; i++) {
+        string_concat(raw_actions_char_buf, argv[i], strlen(argv[i]) + 1);
     }
+    handle_argv_actions(&(argv[1]), string_len(raw_actions_char_buf));
+}
 
-    char *search = NULL;
-    if (argc > 1) {
-        search = argv[1];
-    }
-
-    action_search(search);
-
-    if (hashmap_item_count(aio_get_entryi()) == 0) {
-        printf("No results\n");
-        return 1;
-    }
-
-    struct selector_action_handlers actions = {
-        .on_hover = NULL,
-        .preview_gen = preview,
-    };
-
+int let_user_select(struct selector_action_handlers actions, int *selected_id) {
     array *lines = array_new2(0, sizeof(const char **));
     for (size_t i = 0; i < array_len(aio_get_itemids()); i++) {
         aioid_t idint = *(aioid_t *)array_at(aio_get_itemids(), i);
@@ -449,43 +428,87 @@ int main(const int argc, char *argv[]) {
     selector *s = selector_new2(actions, lines);
     int selector_status;
     selector_id_t row = selector_select(s, &selector_status);
-    const char *z = selector_get_by_id(s, row);
     selector_del2(s);
 
-    if (selector_status == 2) {
-        goto end;
-    }
+    if (selected_id != NULL)
+        *selected_id = *(int *)array_at(aio_get_itemids(), row);
 
+    return selector_status;
+}
+
+int let_user_do_action_to_item(struct selector_action_handlers actions,
+                               const char **action) {
     const size_t action_count = 3;
-    const char* action_list[] = {
+    const char *action_list[] = {
         "finish",
         "start",
         "print",
     };
 
-    array* action_arr = array_new2(action_count, sizeof(const char**));
-    for(int i = 0; i < action_count; i++) {
+    array *action_arr = array_new2(action_count, sizeof(const char **));
+    for (int i = 0; i < action_count; i++) {
         array_append(action_arr, &action_list[i]);
     }
 
     actions.preview_gen = NULL;
-    s = selector_new2(actions, action_arr);
-    selector_select(s, &selector_status);
+    selector *s = selector_new2(actions, action_arr);
+    int selector_status;
+    int row = selector_select(s, &selector_status);
+    *action = selector_get_by_id(s, row);
     selector_del2(s);
+
+    return selector_status;
+}
+
+int main(const int argc, char *argv[]) {
+    VIPS_INIT(argv[0]);
+
+    handle_opts(argc, argv);
+
+    aio_init();
+
+    curl_global_init(CURL_GLOBAL_DEFAULT);
+
+    errf = fopen(log_file, "w");
+
+    if (argc > 1) {
+        do_actions(argc, argv);
+        return 0;
+    }
+
+    action_search(NULL);
+
+    if (hashmap_item_count(aio_get_entryi()) == 0) {
+        printf("No results\n");
+        return 1;
+    }
+
+    struct selector_action_handlers actions = {
+        .on_hover = NULL,
+        .preview_gen = preview,
+    };
+
+    int selected_id;
+    int selector_status = let_user_select(actions, &selected_id);
 
     if (selector_status == 2) {
         goto end;
     }
 
-    int* id = array_at(aio_get_itemids(), row);
-    struct aio_entryi* i = aio_get_by_id(*id, aio_get_entryi());
-    string* o = string_new2(50);
-    aio_entryi_to_human_str(i, o);
-    printf("%s\n", string_mkcstr(o));
-    string_del2(o);
+    const char *selected_action;
+    selector_status = let_user_do_action_to_item(actions, &selected_action);
 
-    printf("You selected: %s\n", z);
+    if (selector_status == 2) {
+        goto end;
+    }
 
+    if (strcmp(selected_action, "print") == 0) {
+        struct aio_entryi *i = aio_get_by_id(selected_id, aio_get_entryi());
+        string *o = string_new2(50);
+        aio_entryi_to_human_str(i, o);
+        printf("%s\n", string_mkcstr(o));
+        string_del2(o);
+    }
 end:
     curl_global_cleanup();
 
