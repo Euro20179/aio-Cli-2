@@ -4,8 +4,9 @@
 A terminal aiolimas frontend in c.
 
 == BUILDING
-1. install | https://github.com/euro20179/selector.h |
-2. ./build
+>sh
+make
+<
 
 == Features
 

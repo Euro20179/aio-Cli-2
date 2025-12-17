@@ -2,3 +2,6 @@ log
 a.out
 test/
 aio-cli
+
+./obj
+selector.h
