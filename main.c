@@ -436,6 +436,7 @@ int main(const int argc, char *argv[]) {
         .on_hover = NULL,
         .preview_gen = preview,
     };
+
     array *lines = array_new2(0, sizeof(const char **));
     for (size_t i = 0; i < array_len(aio_get_itemids()); i++) {
         aioid_t idint = *(aioid_t *)array_at(aio_get_itemids(), i);
@@ -466,6 +467,13 @@ int main(const int argc, char *argv[]) {
     s = selector_new2(actions, action_arr);
     selector_select(s);
     selector_del2(s);
+
+    int* id = array_at(aio_get_itemids(), row);
+    struct aio_entryi* i = aio_get_by_id(*id, aio_get_entryi());
+    string* o = string_new2(50);
+    aio_entryi_to_human_str(i, o);
+    printf("%s\n", string_mkcstr(o));
+    string_del2(o);
 
     printf("You selected: %s\n", z);
 

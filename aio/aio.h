@@ -212,7 +212,6 @@ unsigned char* aio_get_thumbnail(aioid_t entryid, CURLcode* error);
 // }}}
 
 
-
 // general entry functions {{{
 
 /// gets a key from an entry (metadata/user/info)
