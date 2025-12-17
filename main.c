@@ -26,7 +26,7 @@
 #include "c-stdlib/string.h"
 #include "globals.h"
 
-#include "selector.h/selector.h"
+#include "selector.h"
 
 static int verbose = false;
 

@@ -3,6 +3,11 @@
 
 A terminal aiolimas frontend in c.
 
+== BUILDING
+1. install | https://github.com/euro20179/selector.h | as a lib in `/usr/lib` by
+    using mkso in that repo
+2. ./build
+
 == Features
 
 + (bad) tui selection menu
